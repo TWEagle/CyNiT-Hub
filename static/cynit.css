@@ -1,4 +1,4 @@
-/* ===== Base ===== */
+/* ===== CyNiT Base (matcht ctools.py HTML) ===== */
 :root{
   --bg: #000;
   --bg2:#05080a;
@@ -12,46 +12,47 @@
 }
 
 *{ box-sizing:border-box; }
-html,body{ height:100%; }
-body.page{
-  margin:0;
+html,body{ height:100%; margin:0; padding:0; }
+
+body.cynit-body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background: radial-gradient(1200px 700px at 50% 0%, #08121a 0%, #000 60%);
   color: var(--text);
 }
 
 /* ===== Header ===== */
-.topbar{
+.header{
   position: sticky;
   top:0;
-  z-index:10;
-  height: 64px;
+  z-index: 50;
+  height: 72px;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding: 0 14px;
-  background: linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,.35));
+  padding: 0 16px;
+  background: linear-gradient(180deg, rgba(0,0,0,.80), rgba(0,0,0,.40));
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(8px);
 }
 
-.topbar-left,.topbar-right{
+.header-left,.header-right{
   display:flex;
   align-items:center;
-  gap:10px;
+  gap:12px;
 }
 
 .iconbtn{
   border:1px solid var(--border);
   background: rgba(255,255,255,.03);
   color: var(--text);
-  border-radius: 12px;
-  padding: 8px 10px;
+  border-radius: 14px;
+  padding: 10px 12px;
   cursor:pointer;
   box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  font-size: 22px;        /* maakt 🔧 en ⚙️ groter */
+  line-height: 1;
 }
 .iconbtn:hover{ background: rgba(255,255,255,.06); }
-.iconbtn-big{ font-size: 22px; line-height: 1; }
 
 .brand{
   display:flex;
@@ -60,21 +61,25 @@ body.page{
   text-decoration:none;
   color: var(--text);
 }
+
 .brand-logo{
-  height: 54px;
+  height: 44px;
   width: auto;
   display:block;
+  filter: drop-shadow(0 6px 18px rgba(0,0,0,.45));
 }
+
 .brand-title{
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: .3px;
   font-size: 24px;
 }
 
-/* ===== Dropdown ===== */
+/* ===== Dropdowns ===== */
 .dropdown{
-  position:absolute;
-  margin-top: 10px;
+  position: absolute;
+  top: 72px;              /* net onder de header */
+  left: 16px;
   min-width: 360px;
   max-width: 520px;
   background: rgba(10,15,18,.92);
@@ -84,38 +89,117 @@ body.page{
   padding: 10px;
   display:none;
 }
+
 .dropdown.open{ display:block; }
-.dropdown-right{ right: 14px; }
+
+#beheerMenu.dropdown{
+  left: auto;
+  right: 16px;
+}
+
 .dropdown-title{
-  font-weight:700;
+  font-weight:800;
   padding: 8px 10px;
   color: var(--muted);
   border-bottom: 1px solid rgba(255,255,255,.06);
   margin-bottom: 6px;
 }
+
 .dropdown-item{
   display:flex;
+  align-items:center;
   gap:10px;
   padding: 10px 10px;
   border-radius: 12px;
   text-decoration:none;
   color: var(--text);
 }
+
 .dropdown-item:hover{ background: rgba(255,255,255,.05); }
-.dd-icon{ width: 28px; text-align:center; font-size: 18px; }
-.dd-text{ display:flex; flex-direction:column; gap:2px; }
-.dd-name{ font-weight:700; }
-.dd-desc{ color: var(--muted); font-size: 12px; }
-.dropdown-empty{ padding: 10px; color: var(--muted); }
+
+.dot{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.05);
+  flex: 0 0 auto;
+}
+
+.dropdown-text{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:700;
+}
+
+.dropdown-empty{
+  padding: 10px;
+  color: var(--muted);
+}
 
 /* ===== Main ===== */
 .main{
-  min-height: calc(100vh - 64px - 52px);
-  padding: 22px 18px;
+  min-height: calc(100vh - 72px - 52px);
+  padding: 26px 18px;
+  background: transparent;
 }
 
-.pagewrap{ max-width: 1200px; margin: 0 auto; }
+.pagewrap{
+  max-width: 1200px;
+  margin: 0 auto;
+}
 
+.pagewrap h1{
+  margin: 0 0 14px 0;
+  font-size: 34px;
+  letter-spacing: .2px;
+}
+
+/* ===== Tool cards (home) ===== */
+.grid{
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+}
+
+.toolcard{
+  --accent: #00ff66;
+  display:block;
+  text-decoration:none;
+  color: var(--text);
+  background: rgba(10,15,18,.72);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--accent);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.toolcard:hover{ background: rgba(10,15,18,.84); }
+
+.toolcard-top{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.toolcard-icon{
+  font-size: 20px;
+  opacity: .95;
+}
+
+.toolcard-title{
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.toolcard-desc{
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ===== Panel (fallback/beheer pages) ===== */
 .panel{
   background: rgba(10,15,18,.75);
   border: 1px solid var(--border);
@@ -124,37 +208,7 @@ body.page{
   box-shadow: var(--shadow);
 }
 
-.cards{
-  margin-top: 16px;
-  display:flex;
-  flex-direction:column;
-  gap: 14px;
-}
-
-.toolcard{
-  --accent: #00f700;
-  display:block;
-  text-decoration:none;
-  color: var(--text);
-  background: rgba(10,15,18,.68);
-  border: 1px solid var(--border);
-  border-left: 5px solid var(--accent);
-  border-radius: 18px;
-  padding: 14px 16px;
-  box-shadow: var(--shadow);
-}
-.toolcard:hover{ background: rgba(10,15,18,.80); }
-.toolcard-head{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-size: 16px;
-  font-weight: 800;
-}
-.toolcard-icon{ font-size: 18px; }
-.toolcard-desc{ margin-top: 8px; color: var(--muted); }
-.toolcard-hint{ margin-top: 14px; color: rgba(255,255,255,.45); font-size: 12px; }
-
+/* ===== Footer ===== */
 .footer{
   height: 52px;
   display:flex;
@@ -162,10 +216,10 @@ body.page{
   padding: 0 18px;
   border-top: 1px solid var(--border);
   color: var(--muted);
-  background: rgba(0,0,0,.35);
+  background: rgba(0,0,0,.45);
 }
 
-/* ===== Buttons / inputs ===== */
+/* ===== Buttons ===== */
 .btn{
   display:inline-flex;
   align-items:center;
@@ -179,115 +233,3 @@ body.page{
   cursor:pointer;
 }
 .btn:hover{ background: rgba(255,255,255,.06); }
-.btn-primary{
-  border-color: rgba(53,230,223,.45);
-  box-shadow: 0 0 0 2px rgba(53,230,223,.10);
-}
-.hint{ color: var(--muted); margin-top: 12px; }
-
-/* ===== Tools editor table ===== */
-.tools-toolbar{
-  display:flex;
-  gap:10px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-
-.tablewrap{
-  overflow:auto;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.08);
-}
-
-.tooltable{
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 980px;
-}
-.tooltable th, .tooltable td{
-  border-bottom: 1px solid rgba(255,255,255,.06);
-  padding: 10px;
-  vertical-align: middle;
-}
-.tooltable th{
-  text-align:left;
-  color: var(--muted);
-  font-weight:700;
-  background: rgba(255,255,255,.02);
-}
-
-.inp{
-  width: 100%;
-  padding: 10px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(0,0,0,.25);
-  color: var(--text);
-}
-.inp:focus{ outline: 2px solid rgba(53,230,223,.18); }
-
-.inp-icon{ width: 60px; text-align:center; font-size: 18px; }
-.inp-id{ width: 160px; }
-.inp-path{ width: 160px; }
-.inp-accent{ width: 110px; font-family: ui-monospace, Consolas, monospace; }
-
-.accentbox{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-.colorpick{
-  width: 44px;
-  height: 36px;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px;
-  background: transparent;
-  padding: 0;
-}
-
-.mini{
-  padding: 6px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.03);
-  color: var(--text);
-  cursor:pointer;
-}
-.mini:hover{ background: rgba(255,255,255,.06); }
-.mini.danger{ border-color: rgba(255,80,80,.35); }
-
-.col-move{ width: 86px; }
-.col-enabled{ width: 70px; }
-.col-icon{ width: 80px; }
-.col-del{ width: 50px; }
-
-/* Toggle switch */
-.switch{ position: relative; display:inline-block; width: 46px; height: 26px; }
-.switch input{ display:none; }
-.slider{
-  position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
-  background: rgba(255,255,255,.15);
-  border: 1px solid rgba(255,255,255,.18);
-  transition: .2s;
-  border-radius: 999px;
-}
-.slider:before{
-  position:absolute; content:"";
-  height: 20px; width: 20px;
-  left: 3px; top: 2px;
-  background: #fff;
-  transition: .2s;
-  border-radius: 999px;
-}
-.switch input:checked + .slider{
-  background: rgba(53,230,223,.35);
-  border-color: rgba(53,230,223,.35);
-}
-.switch input:checked + .slider:before{
-  transform: translateX(20px);
-}
-
-.inp-script{ width: 160px; }
-.inp-type{ width: 90px; }
-.col-script{ width: 170px; }
-.col-type{ width: 100px; }

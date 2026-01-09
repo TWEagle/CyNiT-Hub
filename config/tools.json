@@ -1,13 +1,13 @@
 [
   {
     "id": "voica1",
-    "name": "VOICA1",
-    "icon": "🔐",
-    "web_path": "/voica1",
+    "name": "VOICA1 Certificaten",
     "script": "voica1.py",
-    "type": "web",
-    "description": "Certificaten & batches",
-    "accent": "#00f700",
-    "enabled": true
+    "web_path": "/voica1",
+    "icon_web": "📄",
+    "description": "VOICA1 tool",
+    "accent": "#00ff66",
+    "enabled": true,
+    "hidden": false
   }
 ]
