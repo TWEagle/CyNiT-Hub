@@ -138,10 +138,27 @@ def find_title_for_path(path: str, tools: List[Dict[str, Any]], beheer: List[Dic
 def images(filename: str):
     return send_from_directory(IMAGES_DIR, filename)
 
+@app.route("/logo.png")
+def legacy_logo_png():
+    # compat voor tools die nog /logo.png gebruiken
+    return send_from_directory(IMAGES_DIR, "logo.png")
+
+@app.route("/logo.ico")
+def legacy_logo_ico():
+    # compat voor tools die /logo.ico gebruiken
+    return send_from_directory(IMAGES_DIR, "logo.ico")
+
+@app.route("/favicon.ico")
+def legacy_favicon():
+    # compat voor browsers/tools die /favicon.ico vragen
+    return send_from_directory(IMAGES_DIR, "logo.ico")
 
 # -----------------------------
 # Tool dynamic loader
 # -----------------------------
+
+TOOL_LOAD_ERRORS: Dict[str, str] = {}
+
 def _module_from_tool(tool: Dict[str, Any]) -> Optional[str]:
     """
     Tries to determine module name for tool import.
@@ -205,19 +222,76 @@ def _register_tool_module(modname: str) -> Tuple[bool, str]:
         return False, f"import/register failed: {exc}"
 
 
+def _rule_exists(path: str) -> bool:
+    path = _norm_path(path)
+    for r in app.url_map.iter_rules():
+        if r.rule == path:
+            return True
+    return False
+
+
+def _add_fallback_route(tool: Dict[str, Any], reason: str) -> None:
+    tid = str(tool.get("id") or "tool")
+    name = str(tool.get("name") or tid)
+    web_path = _norm_path(str(tool.get("web_path") or "/"))
+    modname = _module_from_tool(tool) or "(unknown)"
+
+    if web_path == "/" or _rule_exists(web_path):
+        return  # bestaat al
+
+    endpoint = f"fallback_{tid}"
+
+    def _view(reason=reason, name=name, tid=tid, web_path=web_path, modname=modname):
+        html = f"""
+        <div class="pagewrap">
+          <div class="panel">
+            <h1>Tool niet beschikbaar</h1>
+            <p><b>{name}</b> (<code>{tid}</code>) kon niet geladen worden.</p>
+            <div class="kv">
+              <div><b>web_path</b></div><div><code>{web_path}</code></div>
+              <div><b>module</b></div><div><code>{modname}</code></div>
+              <div><b>reden</b></div><div><code>{reason}</code></div>
+            </div>
+
+            <h2>Checklist</h2>
+            <ul>
+              <li>Bestaat <code>tools/{tid}.py</code> (of de juiste <code>script</code> in tools.json)?</li>
+              <li>Heeft de module een functie <code>register_web_routes(app)</code> of <code>register_routes(app)</code>?</li>
+              <li>Staat <code>enabled: true</code> in <code>config/tools.json</code>?</li>
+            </ul>
+
+            <a class="btn" href="/">↩ Terug naar home</a>
+          </div>
+        </div>
+        """
+        return render_page(html)
+
+    app.add_url_rule(web_path, endpoint, _view, methods=["GET"])
+
+
 def register_all_tools() -> None:
     tools = load_tools()
+    TOOL_LOAD_ERRORS.clear()
+
     for t in tools:
         if not is_enabled(t):
             continue
+
         modname = _module_from_tool(t)
         if not modname:
+            reason = "geen module/script gevonden (tools.json mist 'script' of 'module')"
+            TOOL_LOAD_ERRORS[str(t.get("id") or t.get("name") or "tool")] = reason
+            _add_fallback_route(t, reason)
             continue
+
         ok, how = _register_tool_module(modname)
         if ok:
             log.info("Tool loaded: %s (%s)", modname, how)
         else:
+            reason = f"{modname}: {how}"
+            TOOL_LOAD_ERRORS[str(t.get("id") or t.get("name") or "tool")] = reason
             log.warning("Tool not loaded: %s (%s)", modname, how)
+            _add_fallback_route(t, reason)
 
 
 # -----------------------------
