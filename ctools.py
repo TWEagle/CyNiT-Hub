@@ -38,10 +38,10 @@ BASE_HTML = """
 
 <header class="header">
 
-  <!-- LEFT: WAFFLE -->
+  <!-- LEFT: TOOLS (🔧) -->
   <div class="menu-wrapper">
     <button class="icon-btn" id="toolsBtn" title="Tools">
-      <i class="fa-solid fa-waffle"></i>
+      <i class="fa-solid fa-screwdriver-wrench"></i>
     </button>
 
     <div class="dropdown" id="toolsMenu">
@@ -57,9 +57,9 @@ BASE_HTML = """
     <span class="brand-title">{{ title }}</span>
   </a>
 
-  <!-- RIGHT: HAMBURGER -->
+  <!-- LEFT (next to tools): BEHEER (⚙️) -->
   <button class="icon-btn" title="Beheer">
-    <i class="fa-solid fa-bars"></i>
+    <i class="fa-solid fa-gear"></i>
   </button>
 
 </header>
@@ -86,7 +86,7 @@ def home():
         content="""
         <div class="card">
           <h1>Home</h1>
-          <p>Wafel-menu werkt nu.</p>
+          <p>🔧 Tools-menu links, ⚙️ beheer voorbereid.</p>
           <a class="btn" href="/voica1">Open VOICA1</a>
         </div>
         """

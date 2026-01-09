@@ -26,15 +26,13 @@ body.page {
   background: none;
   border: none;
   color: #ddd;
-  font-size: 30px;
+  font-size: 20px;
   cursor: pointer;
-  padding: 8px;
-  border-radius: 10px;
+  padding: 6px;
 }
 
 .icon-btn:hover {
-  color: #3fd0c9; /* accent */
-  background: rgba(63, 208, 201, 0.08);
+  color: #3fd0c9;
 }
 
 /* Brand (logo + title) */
