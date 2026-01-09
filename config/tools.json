@@ -1,22 +1,13 @@
 [
   {
-    "id": "home",
-    "name": "Home",
-    "web_path": "/",
-    "icon": "🏠",
-    "description": "Startpagina van CyNiT Hub",
-    "hidden": false,
-    "order": 1,
-    "accent": "#3fd0c9"
-  },
-  {
     "id": "voica1",
     "name": "VOICA1",
-    "web_path": "/voica1",
     "icon": "🔐",
+    "web_path": "/voica1",
+    "script": "voica1.py",
+    "type": "web",
     "description": "Certificaten & batches",
-    "hidden": false,
-    "order": 2,
-    "accent": "#00ff66"
+    "accent": "#00f700",
+    "enabled": true
   }
 ]

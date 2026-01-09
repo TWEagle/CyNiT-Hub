@@ -1,0 +1,42 @@
+[
+  {
+    "id": "beheer_tools",
+    "label": "Tools",
+    "icon": "🔧",
+    "path": "/beheer/tools",
+    "description": "Tools beheren (hide/show, accent, naam, icon, path)",
+    "enabled": true
+  },
+  {
+    "id": "beheer_config",
+    "label": "Config",
+    "icon": "🛠️",
+    "path": "/beheer/config",
+    "description": "Bewerk settings en hub config (later)",
+    "enabled": true
+  },
+  {
+    "id": "beheer_theme",
+    "label": "Theme",
+    "icon": "🎨",
+    "path": "/beheer/theme",
+    "description": "Theme editor (later)",
+    "enabled": true
+  },
+  {
+    "id": "beheer_logs",
+    "label": "Logs",
+    "icon": "📄",
+    "path": "/beheer/logs",
+    "description": "Logs viewer (Stap 7.2)",
+    "enabled": true
+  },
+  {
+    "id": "beheer_hub",
+    "label": "Hub",
+    "icon": "🧩",
+    "path": "/beheer/hub",
+    "description": "Beheer editor (Stap 7.3)",
+    "enabled": true
+  }
+]
