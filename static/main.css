@@ -1,0 +1,220 @@
+:root{
+  --bg: #000;
+  --text:#e8f2f2;
+  --muted:#9fb3b3;
+  --border: rgba(255,255,255,.10);
+  --shadow: 0 12px 40px rgba(0,0,0,.55);
+  --accent:#35e6df;
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+
+html,body{ height:100%; background:#000; }
+
+body, body.page{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(1200px 700px at 50% 0%, #08121a 0%, #000 60%);
+  color: var(--text);
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
+}
+
+/* main moet kunnen groeien zodat footer onderaan blijft */
+.main{
+  flex: 1;
+  min-height: auto;
+  padding: 22px 18px;
+}
+
+/* ===== Header (grid) ===== */
+.topbar{
+  position: sticky;
+  top:0;
+  z-index: 1000;
+
+  height: 64px;
+  padding: 0 14px;
+
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+
+  background: linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,.35));
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+
+.topbar-left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  justify-content:flex-start;
+
+  /* KEY FIX: altijd boven de center/brand */
+  z-index: 1001;
+}
+.topbar-right{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  justify-content:flex-end;
+  z-index: 1001;
+}
+
+.iconbtn{
+  border:1px solid var(--border);
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor:pointer;
+
+  /* KEY FIX: klikbaar maken */
+  pointer-events: auto;
+}
+.iconbtn:hover{ background: rgba(255,255,255,.06); }
+.iconbtn-big{ font-size: 26px; line-height: 1; }
+
+/* center brand mag NIET over links/rechts hangen */
+.brand{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  text-decoration:none;
+  color: var(--text);
+
+  max-width: 520px;
+  margin: 0 auto;
+
+  /* KEY FIX: brand mag clicks niet “wegkapen” */
+  position: relative;
+  z-index: 1000;
+}
+
+.brand-logo{ height: 54px; width:auto; display:block; }
+.brand-title{ font-weight: 800; letter-spacing:.3px; font-size: 24px; }
+
+.pill{
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ===== Dropdowns ===== */
+.dropdown{
+  position: fixed;
+  z-index: 2000;
+  min-width: 360px;
+  max-width: 520px;
+  background: rgba(10,15,18,.92);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 10px;
+  display:none;
+}
+.dropdown.open{ display:block; }
+
+.dropdown-title{
+  font-weight:700;
+  padding: 8px 10px;
+  color: var(--muted);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  margin-bottom: 6px;
+}
+.dropdown-item{
+  display:flex;
+  gap:10px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  text-decoration:none;
+  color: var(--text);
+}
+.dropdown-item:hover{ background: rgba(255,255,255,.05); }
+.dd-icon{ width: 28px; text-align:center; font-size: 18px; }
+.dd-text{ display:flex; flex-direction:column; gap:2px; }
+.dd-name{ font-weight:700; }
+.dd-desc{ color: var(--muted); font-size: 12px; }
+.dropdown-empty{ padding: 10px; color: var(--muted); }
+
+/* ===== Main ===== */
+.main{
+  /* KEY FIX: neemt alle ruimte zodat footer altijd onderaan staat */
+  flex: 1;
+  padding: 22px 18px;
+}
+
+.pagewrap{ max-width: 1200px; margin: 0 auto; }
+
+.panel{
+  background: rgba(10,15,18,.75);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+
+/* cards */
+.cards{
+  margin-top: 16px;
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+}
+
+.toolcard{
+  --accent: #00f700;
+  display:block;
+  text-decoration:none;
+  color: var(--text);
+  background: rgba(10,15,18,.68);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--accent);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.toolcard:hover{ background: rgba(10,15,18,.80); }
+.toolcard-head{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.toolcard-icon{ font-size: 18px; }
+.toolcard-desc{ margin-top: 8px; color: var(--muted); }
+
+/* footer */
+.footer{
+  height: 52px;
+  display:flex;
+  align-items:center;
+  padding: 0 18px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(0,0,0,.35);
+  flex-shrink: 0;
+}
+
+/* buttons */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  text-decoration:none;
+  cursor:pointer;
+}
+.btn:hover{ background: rgba(255,255,255,.06); }
