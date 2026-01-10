@@ -7,13 +7,13 @@ from flask import url_for, request
 # =========================
 # Paths
 # =========================
-BASE_DIR = Path(__file__).resolve().parents[1]   # .../CyNiT-Hub
+BASE_DIR = Path(__file__).resolve().parents[1]   # CyNiT-Hub/
 CONFIG_DIR = BASE_DIR / "config"
 TOOLS_JSON = CONFIG_DIR / "tools.json"
 
 
 # =========================
-# Data loading
+# Data loaders
 # =========================
 def load_tools() -> list[dict]:
     if not TOOLS_JSON.exists():
@@ -32,7 +32,7 @@ def _tool_items(tools: list[dict]) -> list[dict]:
         if not t.get("enabled", True):
             continue
 
-        web_path = t.get("web_path") or t.get("path") or ""
+        web_path = (t.get("web_path") or "").strip()
         if web_path and not web_path.startswith("/"):
             web_path = "/" + web_path
 
@@ -48,44 +48,42 @@ def _tool_items(tools: list[dict]) -> list[dict]:
 def _beheer_items() -> list[dict]:
     return [
         {"name": "Tools Editor", "icon": "⚙️", "desc": "Hide/show + accent + naam/icon", "href": "/beheer/tools"},
-        {"name": "Config",       "icon": "🧾", "desc": "settings.json beheren",          "href": "/beheer/config"},
-        {"name": "Theme",        "icon": "🎨", "desc": "theme.json beheren",             "href": "/beheer/theme"},
-        {"name": "Logs",         "icon": "📜", "desc": "logs viewer",                    "href": "/beheer/logs"},
-        {"name": "Hub Editor",   "icon": "🧭", "desc": "hub editor",                     "href": "/beheer/hub"},
+        {"name": "Config",       "icon": "🧾", "desc": "settings.json beheren",           "href": "/beheer/config"},
+        {"name": "Theme",        "icon": "🎨", "desc": "theme.json beheren",              "href": "/beheer/theme"},
+        {"name": "Logs",         "icon": "📜", "desc": "logs viewer",                     "href": "/beheer/logs"},
+        {"name": "Hub Editor",   "icon": "🧭", "desc": "hub editor",                      "href": "/beheer/hub"},
     ]
 
 
 # =========================
-# Page renderer (CENTRAAL)
+# Layout renderer
 # =========================
 def render_page(*, title: str, content_html: str) -> str:
-    # static assets
+    """
+    title = PAGINA titel (bv: 'Theme', 'VOICA1', 'Home')
+    """
+
+    # ---------- bepaal context ----------
+    path = request.path or ""
+
+    if path.startswith("/beheer"):
+        brand = "CyNiT Beheer"
+    else:
+        brand = "CyNiT Tools"
+
+    page_title = f"{brand} | {title}" if title else brand
+
+    # ---------- assets ----------
     css_href = url_for("static", filename="main.css")
     js_src = url_for("static", filename="main.js")
 
-    # images (via /images route in master.py)
     logo_src = "/images/logo.png?v=1"
     favicon_ico = "/images/logo.ico"
 
-    # dropdown data
     tools = _tool_items(load_tools())
     beheer = _beheer_items()
 
-    # =========================
-    # Titel-logica
-    # =========================
-    path = (request.path or "").lower()
-    is_beheer = path.startswith("/beheer")
-
-    brand_text = "CyNiT Beheer" if is_beheer else "CyNiT Tools"
-    page_name = (title or "").strip() or "Home"
-
-    document_title = f"{brand_text} | {page_name}"
-    pill_text = page_name
-
-    # =========================
-    # HTML helpers
-    # =========================
+    # ---------- dropdown rendering ----------
     def dd_item(it: dict) -> str:
         return f"""
         <a class="dropdown-item" href="{it["href"]}">
@@ -97,22 +95,16 @@ def render_page(*, title: str, content_html: str) -> str:
         </a>
         """
 
-    tools_html = "\n".join(dd_item(it) for it in tools) or (
-        '<div class="dropdown-empty">Geen tools</div>'
-    )
-    beheer_html = "\n".join(dd_item(it) for it in beheer) or (
-        '<div class="dropdown-empty">Geen beheer items</div>'
-    )
+    tools_html = "\n".join(dd_item(it) for it in tools) or '<div class="dropdown-empty">Geen tools</div>'
+    beheer_html = "\n".join(dd_item(it) for it in beheer) or '<div class="dropdown-empty">Geen beheer items</div>'
 
-    # =========================
-    # Final HTML
-    # =========================
+    # ---------- HTML ----------
     return f"""<!doctype html>
 <html lang="nl">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{document_title}</title>
+  <title>{page_title}</title>
   <link rel="icon" href="{favicon_ico}">
   <link rel="stylesheet" href="{css_href}">
 </head>
@@ -121,19 +113,17 @@ def render_page(*, title: str, content_html: str) -> str:
 
 <header class="topbar">
   <div class="topbar-left">
-    <button id="btn-tools" class="iconbtn iconbtn-big"
-            type="button" aria-expanded="false" title="Tools">🔧</button>
+    <button id="btn-tools" class="iconbtn iconbtn-big" title="Tools">🔧</button>
   </div>
 
-  <a class="brand" href="/" aria-label="Home">
+  <a class="brand" href="/">
     <img class="brand-logo" src="{logo_src}" alt="CyNiT logo">
-    <span class="brand-title">{brand_text}</span>
+    <span class="brand-title">{brand}</span>
   </a>
 
   <div class="topbar-right">
-    <div class="pill">{pill_text}</div>
-    <button id="btn-beheer" class="iconbtn iconbtn-big"
-            type="button" aria-expanded="false" title="Beheer">⚙️</button>
+    <div class="pill">{title}</div>
+    <button id="btn-beheer" class="iconbtn iconbtn-big" title="Beheer">⚙️</button>
   </div>
 </header>
 
@@ -159,4 +149,5 @@ def render_page(*, title: str, content_html: str) -> str:
 
 <script src="{js_src}"></script>
 </body>
-</html>"""
+</html>
+"""
