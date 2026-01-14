@@ -1,63 +1,46 @@
 
 # tools/useful_links.py
-# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Nuttige links (CyNiT Hub, feature-parity port).
-- Route: /links (+ subroutes voor CRUD, prefs, categoriebeheer, grid-settings)
-- Opslag: config/useful_links.json  (data)
-- Grid-instellingen: config/settings.json (modes.comfortable/compact.max_columns)
-- UI/UX:
-  * Tabs (Links / Beheer) met sticky topbar
-  * Categorieblokken met kleuraccent + counts + "Alle"
-  * Cards per link met bewerk-/verwijder-/copy-actie
-  * Modals voor link edit en categorie-rename (incl. live preview)
-  * ESC sluit modals; Ctrl+Enter en Ctrl+S = opslaan; Ctrl+W = sluiten
-  * Focus trap in modals (Tab/Shift+Tab)
-  * View mode keuzeknop (comfortable/compact) + opslag in prefs
-  * Hide default category toggle
-  * Category color set / rename (met optie "move links")
-  * Category delete (alleen indien leeg en niet-default)
-  * Grid kolom-sliders voor beide modes -> schrijft naar config/settings.json
-- Integratie:
-  * Geen cynit_theme/ layout; gebruikt beheer.main_layout.render_page()
-  * main_layout voegt header/topbar/footer + /static/main.css en /static/main.js toe
+Nuttige links — volledige hub-versie (gefixte template en rendering).
+- Opslag: config/useful_links.json
+- Grid-settings: config/settings.json (useful_links.modes.<mode>.*)
+- Integratie: beheer.main_layout.render_page()
 """
-
 from __future__ import annotations
-
 import json
 import uuid
-import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
-
+from typing import Any, Dict, List
 from flask import Flask, request, render_template_string, redirect, url_for
-
-# Hub layout
 from beheer.main_layout import render_page as hub_render_page  # type: ignore
 
-# ===== Paden =====
-BASE_DIR = Path(__file__).resolve().parents[1]  # CyNiT-Hub/
+# Paden
+BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = BASE_DIR / "config"
 DATA_PATH = CONFIG_DIR / "useful_links.json"
-SETTINGS_PATH = CONFIG_DIR / "settings.json"    # optioneel; grid-sliders schrijven hiernaar
+SETTINGS_PATH = CONFIG_DIR / "settings.json"
 
-# ===== Defaults =====
+# Defaults
 FALLBACK_CATEGORY = "Algemeen"
-DEFAULT_COLOR = "#35e6df"  # accentkleur; per categorie overschrijfbaar
+DEFAULT_COLOR = "#35e6df"
 DEFAULT_VIEW_MODE = "comfortable"  # of "compact"
 
-# ===== Helpers =====
+
+# ---------- helpers ----------
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
-def _normalize_cat(name: str) -> str:
-    return (name or "").strip()
 
-def _safe_hex(color: str, default: str = DEFAULT_COLOR) -> str:
-    c = (color or "").strip()
-    return c if (len(c) == 7 and c.startswith("#")) else default
+def _normalize(s: str | None) -> str:
+    return (s or "").strip()
+
+
+def _hex(s: str | None, default: str = DEFAULT_COLOR) -> str:
+    s = (s or "").strip()
+    return s if len(s) == 7 and s.startswith("#") else default
+
 
 def _default_db() -> Dict[str, Any]:
     return {
@@ -67,14 +50,12 @@ def _default_db() -> Dict[str, Any]:
             "hide_default_category": False,
             "view_mode": DEFAULT_VIEW_MODE,
         },
-        "categories": {
-            FALLBACK_CATEGORY: {"color": DEFAULT_COLOR},
-        },
+        "categories": {FALLBACK_CATEGORY: {"color": DEFAULT_COLOR}},
         "links": [],
     }
 
+
 def _default_settings() -> Dict[str, Any]:
-    # Alleen wat we nodig hebben voor de grid, rest laat je main_layout beheren
     return {
         "useful_links": {
             "default_mode": DEFAULT_VIEW_MODE,
@@ -95,9 +76,12 @@ def _default_settings() -> Dict[str, Any]:
                     "breakpoints": [[1400, 5], [1600, 6], [1900, 7]],
                     "max_columns": 7,
                 },
+                # Optioneel: safety_min_width om te voorkomen dat kaarten te smal worden
+                # wordt alleen toegepast als > 0
             },
         }
     }
+
 
 def _load_json(path: Path, default: Dict[str, Any]) -> Dict[str, Any]:
     try:
@@ -107,6 +91,7 @@ def _load_json(path: Path, default: Dict[str, Any]) -> Dict[str, Any]:
         pass
     return default
 
+
 def _save_json(path: Path, data: Dict[str, Any]) -> bool:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -115,54 +100,13 @@ def _save_json(path: Path, data: Dict[str, Any]) -> bool:
     except Exception:
         return False
 
-def _merge_settings(base: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
-    # shallow-deep merge only for parts we use
-    out = dict(base)
-    u = out.setdefault("useful_links", {})
-    e = (extra.get("useful_links") or {})
-    if isinstance(e, dict):
-        # default_mode
-        dm = (e.get("default_mode") or u.get("default_mode") or DEFAULT_VIEW_MODE).strip().lower()
-        u["default_mode"] = dm if dm in ("comfortable", "compact") else DEFAULT_VIEW_MODE
-        # modes
-        um = u.setdefault("modes", {})
-        em = e.get("modes") or {}
-        for mode_name in ("comfortable", "compact"):
-            src = em.get(mode_name) or {}
-            dst = um.setdefault(mode_name, {})
-            for key, dv in _default_settings()["useful_links"]["modes"][mode_name].items():
-                val = src.get(key, dst.get(key, dv))
-                dst[key] = val
-    return out
 
-def _load_settings_live() -> Dict[str, Any]:
-    # settings.json is optioneel; als hij er niet is, gebruiken we _default_settings()
-    current = _load_json(SETTINGS_PATH, _default_settings())
-    return _merge_settings(_default_settings(), current)
-
-def _write_grid_settings(comfort_max_cols: int, compact_max_cols: int) -> bool:
-    settings = _load_settings_live()
-    ul = settings.setdefault("useful_links", {})
-    modes = ul.setdefault("modes", {})
-    modes.setdefault("comfortable", {})
-    modes.setdefault("compact", {})
-    modes["comfortable"]["max_columns"] = max(1, min(12, int(comfort_max_cols)))
-    modes["compact"]["max_columns"] = max(1, min(12, int(compact_max_cols)))
-    return _save_json(SETTINGS_PATH, settings)
-
-def save_db(db: Dict[str, Any]) -> None:
-    _save_json(DATA_PATH, db)
-
+# ---------- DB normalisatie ----------
 def load_db() -> Dict[str, Any]:
-    """
-    Robuust laden + normaliseren van useful_links.json,
-    en defaults toevoegen indien nodig.
-    """
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    """Laadt/normaliseert useful_links.json en vult ontbrekende defaults aan."""
     db = _load_json(DATA_PATH, _default_db())
     changed = False
 
-    # Basissecties
     if not isinstance(db.get("links"), list):
         db["links"] = []
         changed = True
@@ -172,206 +116,242 @@ def load_db() -> Dict[str, Any]:
         changed = True
 
     if not isinstance(db.get("prefs"), dict):
-        db["prefs"] = {"default_category": FALLBACK_CATEGORY, "hide_default_category": False, "view_mode": DEFAULT_VIEW_MODE}
+        db["prefs"] = {
+            "default_category": FALLBACK_CATEGORY,
+            "hide_default_category": False,
+            "view_mode": DEFAULT_VIEW_MODE,
+        }
         changed = True
 
-    # Versie & prefs defaults
-    db.setdefault("version", 1)
+    # prefs normaliseren
     prefs = db["prefs"]
-    prefs["default_category"] = _normalize_cat(prefs.get("default_category") or FALLBACK_CATEGORY) or FALLBACK_CATEGORY
+    prefs["default_category"] = _normalize(prefs.get("default_category")) or FALLBACK_CATEGORY
     prefs["hide_default_category"] = bool(prefs.get("hide_default_category", False))
-    vm = (prefs.get("view_mode") or DEFAULT_VIEW_MODE).strip().lower()
+    vm = _normalize(prefs.get("view_mode")) or DEFAULT_VIEW_MODE
     prefs["view_mode"] = vm if vm in ("comfortable", "compact") else DEFAULT_VIEW_MODE
 
     if prefs["default_category"] not in db["categories"]:
         db["categories"][prefs["default_category"]] = {"color": DEFAULT_COLOR}
         changed = True
 
-    # Categorie kleuren normaliseren
-    for cat, meta in list(db["categories"].items()):
+    # categorie-kleuren valideren
+    for k, meta in list(db["categories"].items()):
         if not isinstance(meta, dict):
-            db["categories"][cat] = {"color": DEFAULT_COLOR}
+            db["categories"][k] = {"color": DEFAULT_COLOR}
             changed = True
         else:
-            color = _safe_hex(meta.get("color"))
-            if meta.get("color") != color:
-                meta["color"] = color
+            col = _hex(meta.get("color"), DEFAULT_COLOR)
+            if meta.get("color") != col:
+                meta["color"] = col
                 changed = True
 
-    # Links normaliseren
-    normalized: List[Dict[str, Any]] = []
+    # links normaliseren
+    norm: List[Dict[str, Any]] = []
     default_cat = prefs["default_category"]
-    for row in db["links"]:
-        if not isinstance(row, dict):
+    for r in db["links"]:
+        if not isinstance(r, dict):
             changed = True
             continue
-
-        name = (row.get("name") or "").strip()
-        url = (row.get("url") or "").strip()
+        name = _normalize(r.get("name"))
+        url = _normalize(r.get("url"))
         if not name or not url:
             changed = True
             continue
-
-        row.setdefault("id", str(uuid.uuid4()))
-        cat = _normalize_cat(row.get("category") or "") or default_cat
-        if row.get("category") != cat:
-            row["category"] = cat
+        r.setdefault("id", str(uuid.uuid4()))
+        cat = _normalize(r.get("category")) or default_cat
+        if r.get("category") != cat:
+            r["category"] = cat
             changed = True
-
-        row.setdefault("info", "")
-        row.setdefault("created", _now_iso())
-        row.setdefault("updated", row.get("created", _now_iso()))
-
+        r.setdefault("info", "")
+        r.setdefault("created", _now_iso())
+        r.setdefault("updated", r.get("created", _now_iso()))
         if cat not in db["categories"]:
             db["categories"][cat] = {"color": DEFAULT_COLOR}
             changed = True
+        norm.append(r)
 
-        normalized.append(row)
-
-    if normalized != db["links"]:
-        db["links"] = normalized
+    if norm != db["links"]:
+        db["links"] = norm
         changed = True
 
     if changed:
-        save_db(db)
+        _save_json(DATA_PATH, db)
     return db
 
-def _counts_by_cat(db: Dict[str, Any]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
-    default_cat = (db.get("prefs", {}).get("default_category") or FALLBACK_CATEGORY).strip() or FALLBACK_CATEGORY
-    for r in db.get("links", []):
-        if not isinstance(r, dict):
-            continue
-        c = _normalize_cat(r.get("category") or "") or default_cat
-        counts[c] = counts.get(c, 0) + 1
-    return counts
 
-def _categories(db: Dict[str, Any], hide_default: bool) -> List[str]:
-    cats = set()
-    default_cat = (db.get("prefs", {}).get("default_category") or FALLBACK_CATEGORY).strip() or FALLBACK_CATEGORY
+def save_db(db: Dict[str, Any]) -> None:
+    _save_json(DATA_PATH, db)
 
-    for r in db.get("links", []):
-        if isinstance(r, dict):
-            c = _normalize_cat(r.get("category") or "") or default_cat
-            cats.add(c)
 
-    if isinstance(db.get("categories"), dict):
-        cats.update(db["categories"].keys())
+# ---------- CONTENT TEMPLATE (HTML/CSS/JS) ----------
+def _grid_css_from_settings(st: Dict[str, Any]) -> str:
+    """Genereer CSS voor beide modes op basis van settings.json"""
+    u = st.get("useful_links") or {}
+    modes = u.get("modes") or {}
+    css_parts: List[str] = []
 
-    out = sorted(cats, key=lambda x: x.lower())
-    if hide_default and default_cat in out:
-        out.remove(default_cat)
-    return out
+    for mode_name in ("comfortable", "compact"):
+        m = modes.get(mode_name) or {}
+        minw = int(m.get("min_width", 280 if mode_name == "comfortable" else 240))
+        gap = int(m.get("gap", 14 if mode_name == "comfortable" else 10))
+        py = int(m.get("card_padding_y", 10 if mode_name == "comfortable" else 8))
+        px = int(m.get("card_padding_x", 12 if mode_name == "comfortable" else 10))
+        bps = m.get("breakpoints", [])
+        maxc = int(m.get("max_columns", 6 if mode_name == "comfortable" else 7))
 
-# ===== Template =====
+        css_parts.append(f"""
+/* {mode_name} basis */
+.grid {{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax({minw}px, 1fr));
+  gap:{gap}px;
+}}
+.cardlink {{
+  padding:{py}px {px}px;
+}}
+""")
+
+        for bp in bps:
+            try:
+                w, cols = int(bp[0]), int(bp[1])
+                cols = min(cols, maxc)
+                css_parts.append(f"""
+@media (min-width:{w}px) {{
+  .grid {{ grid-template-columns: repeat({cols}, 1fr); }}
+}}
+""")
+            except Exception:
+                pass
+
+    return "\n".join(css_parts)
+
 
 CONTENT_TEMPLATE = r"""
 <style>
-/* Compacte stijlen voor deze module; algemene look & feel komt uit main.css */
+/* Basis layout */
 .links-wrap { max-width: 1100px; margin: 0 auto; }
-.card { background: rgba(10,15,18,.85); border:1px solid var(--border, rgba(255,255,255,.10)); border-radius: 12px; padding:16px 20px; margin-bottom: 20px; }
+.card {
+  background: rgba(10,15,18,.85);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius: 12px;
+  padding:16px 20px;
+  margin-bottom: 20px;
+}
 .hint { opacity:.85; font-size:.9em; }
-.err { color:#ff4d4d; font-weight:bold; margin: 8px 0 10px 0; }
-.ok  { color:#88ff88; font-weight:bold; margin: 8px 0 10px 0; }
+.err { color:#ff4d4d; font-weight:bold; margin:8px 0 10px 0; }
+.ok  { color:#88ff88; font-weight:bold; margin:8px 0 10px 0; }
 
-/* Tabs + sticky topbar */
-.topbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin: 8px 0 14px 0; }
-.sticky-tabs { position: sticky; top: 0; z-index: 50; padding: 8px 0; background: #0b0b0b; border-bottom: 1px solid #222; }
+/* Tabs */
+.topbar { display:flex; justify-content:space-between; margin-bottom:14px; }
 .tabs { display:flex; gap:8px; }
-.tabbtn { border:1px solid #333; background:#111; border-radius:0; padding:6px 12px; cursor:pointer; color: var(--text,#e8f2f2); }
-.tabbtn.active { background: var(--accent,#35e6df); color:#000; border-color: var(--accent,#35e6df); font-weight: 800; }
+.tabbtn {
+  border:1px solid #333;
+  background:#111;
+  padding:6px 12px;
+  cursor:pointer;
+  color:#e8f2f2;
+}
+.tabbtn.active {
+  background:#35e6df;
+  color:#000;
+  border-color:#35e6df;
+  font-weight:800;
+}
 
-/* Categorieblokken */
-.catbar { display:flex; flex-wrap:wrap; gap:10px; margin:10px 0 16px 0; }
-.catblock { display:flex; flex-direction:column; justify-content:center; gap:2px; width: 160px; min-height:58px; padding:10px 12px;
-  border:1px solid #2a2a2a; background:#0b0b0b; text-decoration:none; color: var(--text,#e8f2f2); transition: background .15s, border-color .15s; }
+/* Categorieën */
+.catbar { display:flex; flex-wrap:wrap; gap:10px; }
+.catblock {
+  display:flex; flex-direction:column;
+  width:160px; min-height:58px; padding:10px 12px;
+  background:#0b0b0b; border:1px solid #2a2a2a;
+  text-decoration:none; color:#e8f2f2;
+}
 .catblock:hover { background:#101010; }
-.catblock:active { transform: translateY(1px); }
-.catblock.active { background:#111; border-color:#ffffff55; }
-.catname { font-weight:800; line-height:1.05; }
+.catname { font-weight:800; }
 .catcount { opacity:.85; font-size:.9em; }
 
 /* Grid */
-.grid { display:grid; margin-bottom: 18px; }
-.cardlink { border:1px solid #2a2a2a; border-radius: 0; background:#0b0b0b; display:flex; flex-direction:column; height: 100%; transition: background .15s, border-color .15s; padding:12px 12px; }
-.cardlink:hover { background:#101010; border-color: var(--catcolor, rgba(255,255,255,.18)); }
-.cardhead { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 8px 0; padding-bottom:8px; border-bottom:1px solid #222; }
-.linkname { font-weight:800; letter-spacing:.2px; color: var(--catcolor, var(--text,#e8f2f2)); }
-.actions { display:inline-flex; gap:6px; align-items:center; }
-.iconbtn { border:1px solid #333; background:#111; border-radius:0; padding:4px 8px; cursor:pointer; color: var(--text,#e8f2f2); }
-.iconbtn:hover { background:#222; }
-a.url { word-break: break-all; text-decoration: underline; color: var(--text,#e8f2f2); }
-.meta { white-space: pre-wrap; margin-top:auto; opacity:.95; }
+.grid { display:grid; margin-bottom:18px; }
 
-/* Inputs */
-.form-row { display:grid; grid-template-columns: 160px 1fr; gap:10px; align-items:center; margin:8px 0; }
-.in { width:100%; padding:7px 10px; border-radius:0; border:1px solid #333; background:#0b0b0b; color: var(--text,#e8f2f2); box-sizing:border-box; }
-textarea.in { min-height: 90px; resize: vertical; }
-.selectbox { border:1px solid #333; background:#0b0b0b; color: var(--text,#e8f2f2); border-radius:0; padding:6px 10px; min-width:240px; }
-.smallbtn, .btn { border:1px solid #333; background:#111; border-radius:0; padding:6px 10px; cursor:pointer; color: var(--text,#e8f2f2); }
-.smallbtn:hover, .btn:hover { background:#222; }
-.sep { margin:18px 0; border:0; border-top:1px solid #222; }
+/* Optionele veiligheidsminimum breedte (houd kaarten leesbaar) */
+.cardlink { min-width: 220px; }
 
-/* Grid-mode CSS (uit settings.json) */
+/* Kaarten */
+.cardlink {
+  border:1px solid #2a2a2a;
+  background:#0b0b0b;
+  display:flex;
+  flex-direction:column;
+}
+.cardlink:hover { border-color:var(--catcolor,#35e6df); }
+.cardhead {
+  display:flex;
+  justify-content:space-between;
+  border-bottom:1px solid #222;
+  padding-bottom:8px;
+  margin-bottom:8px;
+}
+.actions { display:flex; gap:6px; }
+.iconbtn {
+  border:1px solid #333;
+  background:#111;
+  padding:4px 8px;
+  cursor:pointer;
+  color:#e8f2f2;
+}
+.linkname { font-weight:800; color:var(--catcolor,#35e6df); }
+a.url { color:#e8f2f2; word-break: break-all; }
+
+/* Forms */
+.form-row {
+  display:grid;
+  grid-template-columns:160px 1fr;
+  gap:10px;
+  margin:8px 0;
+}
+.in {
+  width:100%;
+  padding:7px 10px;
+  border:1px solid #333;
+  background:#0b0b0b;
+  color:#e8f2f2;
+}
+
+/* Grid CSS vanuit settings */
 {{ grid_css | safe }}
 
-/* Modals */
-.modal { position:fixed; inset:0; background: rgba(0,0,0,0.75); display:none; align-items:flex-start; justify-content:center; padding:6vh 12px; z-index:9999; }
-.modal.open { display:flex; }
-.modalbox { width:min(880px, 100%); background:#0b0b0b; border:1px solid #333; border-radius:0; padding:14px 16px; }
-.modalactions { margin-top:12px; display:flex; gap:10px; }
-.rename-preview { display:flex; gap:12px; align-items:stretch; border:1px solid #222; background:#0b0b0b; }
-.rename-preview-bar { width:10px; background: var(--catcolor, #35e6df); }
-.rename-preview-text { padding:10px 12px; flex:1; }
-.rename-preview-title { font-weight:800; display:flex; gap:10px; align-items:center; }
-.badge { display:inline-block; padding:2px 6px; border:1px solid #333; background:#111; border-radius:0; font-size:.75em; opacity:.9; }
+/* Modals (basis) */
+.modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:1000; }
+.modal.open { display:flex; align-items:center; justify-content:center; }
+.modalbox { background:#0b0b0b; border:1px solid #2a2a2a; border-radius:12px; padding:16px 20px; width:min(680px, 96vw); }
+.badge { border:1px solid #2a2a2a; padding:2px 6px; border-radius:6px; font-size:.8em; }
+.sep { border:0; border-top:1px solid #222; }
+.rename-preview-bar { height:8px; border-radius:6px; background:#35e6df; }
+.rename-preview-title { font-weight:800; }
 </style>
 
 <div class="links-wrap">
   <h1>Nuttige links</h1>
-
   {% if error %}<div class="err">{{ error }}</div>{% endif %}
   {% if msg %}<div class="ok">{{ msg }}</div>{% endif %}
 
-  <!-- Sticky topbar met tabs + view toggle -->
-  <div class="topbar sticky-tabs">
+  <div class="topbar">
     <div class="tabs">
-      <button id="tab-links" class="tabbtn {% if active_tab=='links' %}active{% endif %}" type="button">Links</button>
-      <button id="tab-manage" class="tabbtn {% if active_tab=='manage' %}active{% endif %}" type="button">Beheer</button>
-    </div>
-    <div class="viewtoggle" role="group" aria-label="Weergave">
-      <!-- comfortable -->
-      <form method="post" action="/links/prefs" style="display:inline-flex; gap:8px; margin:0;">
-        <input type="hidden" name="action" value="set_view_mode">
-        <input type="hidden" name="view_mode" value="comfortable">
-        <input type="hidden" name="cat" value="{{ active_cat }}">
-        <button type="submit" class="smallbtn {% if view_mode=='comfortable' %}active{% endif %}">Comfortabel</button>
-      </form>
-      <!-- compact -->
-      <form method="post" action="/links/prefs" style="display:inline-flex; gap:8px; margin:0;">
-        <input type="hidden" name="action" value="set_view_mode">
-        <input type="hidden" name="view_mode" value="compact">
-        <input type="hidden" name="cat" value="{{ active_cat }}">
-        <button type="submit" class="smallbtn {% if view_mode=='compact' %}active{% endif %}">Compact</button>
-      </form>
+      <button id="tab-links"  class="tabbtn {% if active_tab=='links'  %}active{% endif %}">Links</button>
+      <button id="tab-manage" class="tabbtn {% if active_tab=='manage' %}active{% endif %}">Beheer</button>
     </div>
   </div>
 
-  <!-- Categorieën -->
   <div class="card">
     <h2>Categorieën</h2>
-    <div class="catbar" id="links">
+    <div class="catbar">
       {% for c in categories %}
-        <a class="catblock {% if c == active_cat %}active{% endif %}"
-           href="/links?cat={{ c|urlencode }}#links"
-           style="border-left:6px solid {{ cat_colors.get(c, '#35e6df') }};">
+        <a class="catblock" href="/links?cat={{ c }}#links">
           <div class="catname">{{ c }}</div>
           <div class="catcount">{{ counts.get(c,0) }} link(s)</div>
         </a>
       {% endfor %}
-      <a class="catblock {% if active_cat == '__ALL__' %}active{% endif %}"
-         href="/links?cat=__ALL__#links"
-         style="border-left:6px solid var(--accent,#35e6df);">
+      <a class="catblock" href="/links?cat=__ALL__#links">
         <div class="catname">Alle</div>
         <div class="catcount">{{ total }} link(s)</div>
       </a>
@@ -379,46 +359,48 @@ textarea.in { min-height: 90px; resize: vertical; }
   </div>
 
   <!-- PANEL: LINKS -->
-  <div id="panel-links" style="{% if active_tab!='links' %}display:none;{% endif %}">
-    <div class="card">
-      <h2>Links</h2>
-      {% if filtered %}
-        <div class="grid">
-          {% for r in filtered %}
+  <div id="panel-links" class="card" {% if active_tab!='links' %}style="display:none;"{% endif %}>
+    <h2>Links</h2>
+    {% if filtered %}
+      <div class="grid">
+        {% for r in filtered %}
           {% set cc = cat_colors.get(r.category, '#35e6df') %}
-            <div class="cardlink" data-link-card="1"
-                 data-id="{{ r.id|e }}" data-name="{{ r.name|e }}"
-                 data-url="{{ r.url|e }}" data-category="{{ r.category|e }}"
-                 data-info="{{ (r.info or '')|e }}"
-                 style="--catcolor: {{ cc }};">
-              <div class="cardhead">
-                <div class="linkname">{{ r.name }}</div>
-                <div class="actions">
-                  <button type="button" class="iconbtn" title="Bewerk" data-edit-btn="1">✏️</button>
-                  <button type="button" class="iconbtn" title="Copy URL" data-copy-btn="1" data-copy="{{ r.url|e }}">📋</button>
-                  <form method="post" action="/links/delete/{{ r.id }}" style="display:inline-block; margin:0;" onsubmit="return confirm('Verwijderen?');">
-                    <input type="hidden" name="cat" value="{{ active_cat }}">
-                    <button type="submit" class="iconbtn" title="Verwijder">🗑️</button>
-                  </form>
-                </div>
+          <div class="cardlink"
+               data-link-card="1"
+               data-id="{{ r.id }}"
+               data-name="{{ r.name }}"
+               data-url="{{ r.url }}"
+               data-category="{{ r.category }}"
+               data-info="{{ (r.info or '') }}"
+               style="--catcolor: {{ cc }};">
+            <div class="cardhead">
+              <div class="linkname">{{ r.name }}</div>
+              <div class="actions">
+                 <button type="button" class="iconbtn" title="Bewerk" data-edit-btn="1">✏️</button>
+                 <button type="button" class="iconbtn" title="Copy URL" data-copy-btn="1" data-copy="{{ r.url }}">📋</button>
+                 <form method="post" action="/links/delete/{{ r.id }}" style="display:inline;">
+                   <input type="hidden" name="cat" value="{{ active_cat }}">
+                   <button type="submit" class="iconbtn" title="Verwijder" onclick="return confirm('Verwijderen?');">🗑️</button>
+                 </form>
               </div>
-              <div><a class="url" href="{{ r.url }}" target="_blank" rel="noopener noreferrer">{{ r.url }}</a></div>
-              {% if r.info %}<div class="meta">{{ r.info }}</div>{% else %}<div class="meta">&nbsp;</div>{% endif %}
             </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <p class="hint">Geen links in deze categorie.</p>
-      {% endif %}
-    </div>
+            <div><a class="url" href="{{ r.url }}" target="_blank" rel="noopener noreferrer">{{ r.url }}</a></div>
+            {% if r.info %}<div class="meta">{{ r.info }}</div>{% else %}<div class="meta"></div>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="hint">Geen links in deze categorie.</p>
+    {% endif %}
   </div>
 
   <!-- PANEL: BEHEER -->
-  <div id="panel-manage" style="{% if active_tab!='manage' %}display:none;{% endif %}">
+  <div id="panel-manage" class="card" {% if active_tab!='manage' %}style="display:none;"{% endif %}>
+    <h2>Beheer</h2>
+
     <!-- Nieuwe link -->
     <div class="card">
-      <h2>Nieuwe link toevoegen</h2>
-      <p class="hint">Naam en URL zijn verplicht. Lege categorie = default categorie.</p>
+      <h3>Nieuwe link toevoegen</h3>
       <form method="post" action="/links/add">
         <div class="form-row"><div>Naam *</div><div><input class="in" type="text" name="name" required></div></div>
         <div class="form-row"><div>URL *</div><div><input class="in" type="text" name="url" placeholder="https://..." required></div></div>
@@ -431,42 +413,65 @@ textarea.in { min-height: 90px; resize: vertical; }
           </div>
         </div>
         <div class="form-row"><div>Info</div><div><textarea class="in" name="info" rows="3" placeholder="Extra uitleg (optioneel)"></textarea></div></div>
-        <button type="submit" class="btn">➕ Toevoegen</button>
+        <button type="submit" class="iconbtn">➕ Toevoegen</button>
       </form>
     </div>
 
     <!-- Voorkeuren -->
     <div class="card">
-      <h2>Voorkeuren</h2>
+      <h3>Voorkeuren</h3>
+
+      <!-- View toggle -->
+      <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
+        <form method="post" action="/links/prefs">
+          <input type="hidden" name="action" value="set_view_mode">
+          <input type="hidden" name="view_mode" value="comfortable">
+          <input type="hidden" name="cat" value="{{ active_cat }}">
+          <button type="submit" class="iconbtn {% if view_mode=='comfortable' %}active{% endif %}">Comfortabel</button>
+        </form>
+        <form method="post" action="/links/prefs">
+          <input type="hidden" name="action" value="set_view_mode">
+          <input type="hidden" name="view_mode" value="compact">
+          <input type="hidden" name="cat" value="{{ active_cat }}">
+          <button type="submit" class="iconbtn {% if view_mode=='compact' %}active{% endif %}">Compact</button>
+        </form>
+      </div>
 
       <!-- Default category -->
-      <form method="post" action="/links/prefs" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <form method="post" action="/links/prefs">
         <input type="hidden" name="action" value="set_default_category">
-        <label>Default category
-          <select class="selectbox" name="default_category">
-            {% for c in all_categories %}
-              <option value="{{ c }}" {% if c == prefs.default_category %}selected{% endif %}>{{ c }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <button type="submit" class="smallbtn">💾 Opslaan</button>
-        <span class="hint">Lege categorie bij toevoegen/edit gaat naar deze default.</span>
+        <div class="form-row">
+          <div>Default category</div>
+          <div>
+            <select class="in" name="default_category">
+              {% for c in all_categories %}
+                <option value="{{ c }}" {% if c == prefs.default_category %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="iconbtn">💾 Opslaan</button>
+          </div>
+        </div>
       </form>
 
       <!-- Hide default -->
-      <form method="post" action="/links/prefs" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+      <form method="post" action="/links/prefs">
         <input type="hidden" name="action" value="toggle_hide_default">
-        <label style="display:flex; gap:10px; align-items:center; cursor:pointer;">
-          <input type="checkbox" name="hide_default_category" value="1" {% if prefs.hide_default_category %}checked{% endif %}>
-          <span>Hide default category (“{{ prefs.default_category }}”)</span>
-        </label>
-        <button type="submit" class="smallbtn">💾 Opslaan</button>
+        <div class="form-row">
+          <div>Categorieën</div>
+          <div>
+            <label style="display:flex; gap:10px; align-items:center; cursor:pointer;">
+              <input type="checkbox" name="hide_default_category" value="1" {% if prefs.hide_default_category %}checked{% endif %}>
+              <span>Hide default category (“{{ prefs.default_category }}”)</span>
+            </label>
+            <button type="submit" class="iconbtn">💾 Opslaan</button>
+          </div>
+        </div>
       </form>
     </div>
 
-    <!-- Grid kolommen -->
+    <!-- Grid kolommen (settings.json) -->
     <div class="card">
-      <h2>Grid kolommen (settings.json)</h2>
+      <h3>Grid kolommen (settings.json)</h3>
       <p class="hint">Schrijft naar <code>config/settings.json</code> → <code>useful_links.modes.&lt;mode&gt;.max_columns</code></p>
       <form method="post" action="/links/settings/grid">
         <input type="hidden" name="return_tab" value="manage">
@@ -486,47 +491,46 @@ textarea.in { min-height: 90px; resize: vertical; }
             <div class="hint"><span id="mc_k">{{ max_cols_compact }}</span> kolommen (max)</div>
           </div>
         </div>
-        <button type="submit" class="smallbtn">💾 Opslaan in settings.json</button>
+        <button type="submit" class="iconbtn">💾 Opslaan in settings.json</button>
       </form>
     </div>
 
     <!-- Categoriebeheer -->
     <div class="card">
-      <h2>Categoriebeheer</h2>
+      <h3>Categoriebeheer</h3>
       <p class="hint">Kleur instellen, hernoemen (met live preview), of (indien leeg en niet‑default) verwijderen.</p>
-
       {% for c in all_categories %}
-      <div style="display:flex; align-items:center; gap:12px; margin:8px 0;">
-        <!-- kleur -->
-        <form method="post" action="/links/category/color" style="display:flex; gap:8px; align-items:center; margin:0;">
-          <input type="hidden" name="category" value="{{ c }}">
-          <input type="color" name="color" value="{{ cat_colors.get(c, '#35e6df') }}" title="Kleur">
-          <button type="submit" class="smallbtn">💾 Kleur opslaan</button>
-        </form>
+        <div style="display:flex; align-items:center; gap:12px; margin:8px 0; flex-wrap:wrap;">
+          <!-- kleur -->
+          <form method="post" action="/links/category/color">
+            <input type="hidden" name="category" value="{{ c }}">
+            <input type="color" name="color" value="{{ cat_colors.get(c, '#35e6df') }}" title="Kleur">
+            <button type="submit" class="iconbtn">💾 Kleur opslaan</button>
+          </form>
 
-        <!-- rename -->
-        <form method="post" action="/links/category/rename" style="display:flex; gap:8px; align-items:center; margin:0;">
-          <input type="hidden" name="old_category" value="{{ c }}">
-          <label>Nieuwe naam <input class="in" type="text" name="new_category" placeholder="Nieuwe categorienaam"></label>
-          <label>Kleur <input type="color" name="color" value="{{ cat_colors.get(c, '#35e6df') }}"></label>
-          <label style="display:flex; gap:8px; align-items:center;">
-            <input type="checkbox" name="move_links" value="1" checked> Verplaats links
-          </label>
-          <button type="submit" class="smallbtn">✏️ Hernoem</button>
-        </form>
+          <!-- rename -->
+          <form method="post" action="/links/category/rename">
+            <input type="hidden" name="old_category" value="{{ c }}">
+            <label>Nieuwe naam <input class="in" type="text" name="new_category" placeholder="Nieuwe categorienaam"></label>
+            <label>Kleur <input type="color" name="color" value="{{ cat_colors.get(c, '#35e6df') }}"></label>
+            <label style="display:flex; gap:8px; align-items:center;">
+              <input type="checkbox" name="move_links" value="1" checked> Verplaats links
+            </label>
+            <button type="submit" class="iconbtn">✏️ Hernoem</button>
+          </form>
 
-        <!-- delete -->
-        <form method="post" action="/links/category/delete" style="display:flex; gap:12px; align-items:center; margin:0;" onsubmit="return confirm('Categorie verwijderen?');">
-          <input type="hidden" name="category" value="{{ c }}">
-          <button type="submit" class="smallbtn">🗑️ Verwijder (indien leeg)</button>
-        </form>
+          <!-- delete -->
+          <form method="post" action="/links/category/delete">
+            <input type="hidden" name="category" value="{{ c }}">
+            <button type="submit" class="iconbtn" onclick="return confirm('Categorie verwijderen?');">🗑️ Verwijder (indien leeg)</button>
+          </form>
 
-        <div class="hint" style="margin-left:auto;">
-          <strong>{{ c }}</strong>
-          {% if c == prefs.default_category %}<span class="badge">DEFAULT</span>{% endif %}
+          <div class="hint" style="margin-left:auto;">
+            <strong>{{ c }}</strong>
+            {% if c == prefs.default_category %}<span class="badge">DEFAULT</span>{% endif %}
+          </div>
         </div>
-      </div>
-      <hr class="sep">
+        <hr class="sep">
       {% endfor %}
     </div>
   </div>
@@ -550,8 +554,8 @@ textarea.in { min-height: 90px; resize: vertical; }
       </div>
       <div class="form-row"><div>Info</div><div><textarea class="in" id="edit_info" name="info" rows="3"></textarea></div></div>
       <div class="modalactions">
-        <button type="submit" class="smallbtn">💾 Opslaan</button>
-        <button type="button" class="smallbtn" data-close-edit="1">Annuleren</button>
+        <button type="submit" class="iconbtn">💾 Opslaan</button>
+        <button type="button" class="iconbtn" data-close-edit="1">Annuleren</button>
       </div>
     </form>
   </div>
@@ -583,270 +587,274 @@ textarea.in { min-height: 90px; resize: vertical; }
         </div>
       </div>
       <div class="modalactions">
-        <button type="submit" class="smallbtn">✅ Hernoem</button>
-        <button type="button" class="smallbtn" data-close-rename="1">Annuleren</button>
+        <button type="submit" class="iconbtn">✅ Hernoem</button>
+        <button type="button" class="iconbtn" data-close-rename="1">Annuleren</button>
       </div>
     </form>
   </div>
 </div>
 
 <script>
-/* ===== Kleine JS helpers (copy, modals, focus trap, shortcuts) ===== */
-function qs(sel){return document.querySelector(sel);}
-function qsa(sel){return Array.from(document.querySelectorAll(sel));}
+function qs(s){return document.querySelector(s);}
+function qsa(s){return Array.from(document.querySelectorAll(s));}
 async function copyText(txt){
   try { await navigator.clipboard.writeText(txt); }
   catch(e){
-    const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    const ta=document.createElement('textarea'); ta.value=txt;
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
   }
 }
-function isVisible(el){ return el && el.style && el.style.display !== 'none' && el.classList.contains('open'); }
-function getFocusable(container){
-  if(!container) return [];
-  const selectors=[
-    'a[href]','button:not([disabled])','textarea:not([disabled])',
-    'input:not([disabled])','select:not([disabled])','[tabindex]:not([tabindex="-1"])'
-  ];
-  return Array.from(container.querySelectorAll(selectors.join(','))).filter(el=>el.offsetParent!==null);
+function getFocusable(c){
+  if(!c) return [];
+  const sel=['a[href]','button:not([disabled])','textarea:not([disabled])','input:not([disabled])','select:not([disabled])','[tabindex]:not([tabindex="-1"])'];
+  return Array.from(c.querySelectorAll(sel.join(','))).filter(el=>el.offsetParent!==null);
 }
-function trapTab(container, ev){
-  if(ev.key !== 'Tab') return;
-  const focusables = getFocusable(container);
-  if(focusables.length === 0) return;
-  const first = focusables[0], last = focusables[focusables.length - 1];
-  if(ev.shiftKey){ if(document.activeElement === first){ ev.preventDefault(); last.focus(); } }
-  else{ if(document.activeElement === last){ ev.preventDefault(); first.focus(); } }
+function trapTab(c,ev){
+  if(ev.key!=='Tab') return;
+  const f=getFocusable(c); if(f.length===0) return;
+  const first=f[0], last=f[f.length-1];
+  if(ev.shiftKey){ if(document.activeElement===first){ ev.preventDefault(); last.focus(); } }
+  else{ if(document.activeElement===last){ ev.preventDefault(); first.focus(); } }
 }
-/* Modals open/close */
+
+/* Modal open/close */
 function openEditFromCard(card){
   qs('#edit_id').value = card.dataset.id || '';
   qs('#edit_name').value = card.dataset.name || '';
   qs('#edit_url').value = card.dataset.url || '';
   qs('#edit_category').value = card.dataset.category || '';
   qs('#edit_info').value = card.dataset.info || '';
-  const m = qs('#edit_modal'); m.classList.add('open'); setTimeout(()=>qs('#edit_name').focus(), 0);
+  qs('#edit_modal').classList.add('open');
+  setTimeout(()=>qs('#edit_name').focus(),0);
 }
-function closeEdit(){ const m=qs('#edit_modal'); if(m) m.classList.remove('open'); }
-function openRename(cat, color, isDefault){
+function closeEdit(){ qs('#edit_modal').classList.remove('open'); }
+
+function openRename(cat,color,isDefault){
   qs('#rename_old').value = cat;
   qs('#rename_new').value = cat;
   qs('#rename_color').value = color || '#35e6df';
   qs('#rename_move').checked = true;
   updateRenamePreview(cat, qs('#rename_color').value, isDefault);
-  const m = qs('#rename_modal'); m.classList.add('open'); setTimeout(()=>qs('#rename_new').focus(),0);
+  qs('#rename_modal').classList.add('open');
+  setTimeout(()=>qs('#rename_new').focus(),0);
 }
-function closeRename(){ const m=qs('#rename_modal'); if(m) m.classList.remove('open'); }
+function closeRename(){ qs('#rename_modal').classList.remove('open'); }
 function closeAllModals(){ closeEdit(); closeRename(); }
 
-/* Live preview rename */
 function updateRenamePreview(name, color, isDefault){
   qs('#rename_preview_name').textContent = (name || '').toString();
   qs('#rename_preview_bar').style.background = color || '#35e6df';
   qs('#rename_preview_tag').style.display = isDefault ? 'inline-block' : 'none';
 }
 
-/* Global key handling */
+/* Keys + focus trap */
 function modalKeyHandler(ev){
   const editOpen = qs('#edit_modal').classList.contains('open');
-  const renameOpen = qs('#rename_modal').classList.contains('open');
-  const anyOpen = editOpen || renameOpen;
+  const renOpen  = qs('#rename_modal').classList.contains('open');
+  const anyOpen  = editOpen || renOpen;
 
-  if(ev.key === 'Escape' && anyOpen){ ev.preventDefault(); closeAllModals(); return; }
-  if((ev.ctrlKey || ev.metaKey) && (ev.key === 'w' || ev.key === 'W') && anyOpen){ ev.preventDefault(); closeAllModals(); return; }
-  if((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter'){
-    if(editOpen){ const f = qs('#edit_modal form'); if(f){ ev.preventDefault(); f.requestSubmit ? f.requestSubmit() : f.submit(); } return; }
-    if(renameOpen){ const f = qs('#rename_modal form'); if(f){ ev.preventDefault(); f.requestSubmit ? f.requestSubmit() : f.submit(); } return; }
+  if(ev.key==='Escape' && anyOpen){ ev.preventDefault(); closeAllModals(); return; }
+  if((ev.ctrlKey || ev.metaKey) && (ev.key==='w' || ev.key==='W') && anyOpen){ ev.preventDefault(); closeAllModals(); return; }
+
+  if((ev.ctrlKey || ev.metaKey) && (ev.key==='s' || ev.key==='S')){
+    const f = editOpen ? qs('#edit_modal form') : (renOpen ? qs('#rename_modal form') : null);
+    if(f){ ev.preventDefault(); (f.requestSubmit ? f.requestSubmit() : f.submit()); }
   }
-  if((ev.ctrlKey || ev.metaKey) && (ev.key === 's' || ev.key === 'S')){
-    if(editOpen){ const f = qs('#edit_modal form'); if(f){ ev.preventDefault(); f.requestSubmit ? f.requestSubmit() : f.submit(); } return; }
-    if(renameOpen){ const f = qs('#rename_modal form'); if(f){ ev.preventDefault(); f.requestSubmit ? f.requestSubmit() : f.submit(); } return; }
+  if((ev.ctrlKey || ev.metaKey) && ev.key==='Enter'){
+    const f = editOpen ? qs('#edit_modal form') : (renOpen ? qs('#rename_modal form') : null);
+    if(f){ ev.preventDefault(); (f.requestSubmit ? f.requestSubmit() : f.submit()); }
   }
-  if(ev.key === 'Enter' && anyOpen){
-    const tag = (ev.target && ev.target.tagName || '').toLowerCase();
-    if(tag !== 'button'){ ev.preventDefault(); return; }
-  }
-  // focus trap
+
   if(editOpen) trapTab(qs('#edit_modal .modalbox'), ev);
-  else if(renameOpen) trapTab(qs('#rename_modal .modalbox'), ev);
+  if(renOpen)  trapTab(qs('#rename_modal .modalbox'), ev);
 }
 
-/* Bindings */
+/* Tabs + bindings */
 window.addEventListener('load', ()=>{
-  // Tabs
-  const tLinks = qs('#tab-links'); const tManage = qs('#tab-manage');
-  if(tLinks)  tLinks.addEventListener('click', ()=>{ qs('#panel-links').style.display='block'; qs('#panel-manage').style.display='none'; tLinks.classList.add('active'); tManage.classList.remove('active'); location.hash='#links'; });
-  if(tManage) tManage.addEventListener('click', ()=>{ qs('#panel-links').style.display='none'; qs('#panel-manage').style.display='block'; tManage.classList.add('active'); tLinks.classList.remove('active'); location.hash='#manage'; });
-  if((location.hash||'').toLowerCase().includes('manage')){ if(tManage) tManage.click(); }
+  const tLinks  = qs('#tab-links');
+  const tManage = qs('#tab-manage');
+  const show = (panel) => {
+    qs('#panel-links').style.display  = panel==='links'  ? 'block' : 'none';
+    qs('#panel-manage').style.display = panel==='manage' ? 'block' : 'none';
+    tLinks.classList.toggle('active',  panel==='links');
+    tManage.classList.toggle('active', panel==='manage');
+  };
+  if(tLinks)  tLinks.addEventListener('click', ()=>show('links'));
+  if(tManage) tManage.addEventListener('click', ()=>show('manage'));
+  if((location.hash||'').toLowerCase().includes('manage')) show('manage');
 
-  // Link cards actions
+  // kaart acties
   qsa('[data-link-card="1"]').forEach(card=>{
     card.addEventListener('dblclick',(ev)=>{
-      const t = ev.target;
+      const t=ev.target;
       if(t.closest('a') || t.closest('button') || t.closest('form')) return;
       openEditFromCard(card);
     });
     const editBtn = card.querySelector('[data-edit-btn="1"]');
     if(editBtn) editBtn.addEventListener('click',(ev)=>{ ev.preventDefault(); ev.stopPropagation(); openEditFromCard(card); });
     const copyBtn = card.querySelector('[data-copy-btn="1"]');
-    if(copyBtn) copyBtn.addEventListener('click', async (ev)=>{ ev.preventDefault(); ev.stopPropagation(); await copyText(copyBtn.dataset.copy || card.dataset.url || ''); });
+    if(copyBtn) copyBtn.addEventListener('click', async (ev)=>{
+      ev.preventDefault(); ev.stopPropagation();
+      const val = copyBtn.dataset.copy || card.dataset.url || '';
+      if(val) await copyText(val);
+    });
   });
 
-  // Modal close buttons & overlay
+  // modal sluiters
   qsa('[data-close-edit="1"]').forEach(btn=>btn.addEventListener('click', closeEdit));
   qsa('[data-close-rename="1"]').forEach(btn=>btn.addEventListener('click', closeRename));
-  qsa('.modal').forEach(m => m.addEventListener('mousedown', (ev)=>{ if(ev.target === m) closeAllModals(); }));
-
-  // Rename modal live preview
-  const rn = qs('#rename_new'); const rc = qs('#rename_color');
-  if(rn && rc){
-    const recompute = ()=>{
-      const oldCat = qs('#rename_old').value || '';
-      const isDefault = qs('#rename_preview_tag').style.display !== 'none';
-      updateRenamePreview(rn.value || oldCat, rc.value || '#35e6df', isDefault);
-    };
-    rn.addEventListener('input', recompute);
-    rc.addEventListener('input', recompute);
-  }
-
-  // Global keys
+  qsa('.modal').forEach(m => m.addEventListener('mousedown', (ev)=>{ if(ev.target===m) closeAllModals(); }));
   document.addEventListener('keydown', modalKeyHandler);
 });
 </script>
 """
 
-def _grid_css_from_settings(st: Dict[str, Any]) -> str:
-    """
-    Genereer CSS voor beide modes vanuit settings.json waardes:
-    - min_width, gap, card_padding_y/x, breakpoints, max_columns
-    """
-    u = st.get("useful_links") or {}
-    modes = u.get("modes") or {}
-    css_parts: List[str] = []
-    for mode_name in ("comfortable", "compact"):
-        m = modes.get(mode_name) or {}
-        minw = int(m.get("min_width", _default_settings()["useful_links"]["modes"][mode_name]["min_width"]))
-        gap = int(m.get("gap", _default_settings()["useful_links"]["modes"][mode_name]["gap"]))
-        p_y = int(m.get("card_padding_y", _default_settings()["useful_links"]["modes"][mode_name]["card_padding_y"]))
-        p_x = int(m.get("card_padding_x", _default_settings()["useful_links"]["modes"][mode_name]["card_padding_x"]))
-        bps = m.get("breakpoints", _default_settings()["useful_links"]["modes"][mode_name]["breakpoints"])
-        max_cols = int(m.get("max_columns", _default_settings()["useful_links"]["modes"][mode_name]["max_columns"]))
+# ---------- SETTINGS MERGE + HELPERS + RENDERER ----------
+def _merge_settings(base: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(base)
+    e = extra.get("useful_links") or {}
+    u = out.setdefault("useful_links", {})
+    if isinstance(e, dict):
+        dm = (e.get("default_mode") or u.get("default_mode") or DEFAULT_VIEW_MODE).strip().lower()
+        u["default_mode"] = dm if dm in ("comfortable", "compact") else DEFAULT_VIEW_MODE
+        um = u.setdefault("modes", {})
+        em = e.get("modes") or {}
+        for mode_name in ("comfortable", "compact"):
+            dst = um.setdefault(mode_name, {})
+            src = em.get(mode_name) or {}
+            for key, dv in _default_settings()["useful_links"]["modes"][mode_name].items():
+                dst[key] = src.get(key, dst.get(key, dv))
+    return out
 
-        # basis
-        css_parts.append(
-            f"""
-body.mode-{mode_name} .grid {{
-  grid-template-columns: repeat(auto-fill, minmax({minw}px, 1fr));
-  gap: {gap}px;
-}}
-body.mode-{mode_name} .cardlink {{
-  padding: {p_y}px {p_x}px;
-}}
-"""
-        )
-        # breakpoints
-        if isinstance(bps, list):
-            for item in bps:
-                try:
-                    w, cols = int(item[0]), int(item[1])
-                    cols_eff = min(cols, max_cols)
-                    css_parts.append(
-                        f"""
-@media (min-width:{w}px){{
-  body.mode-{mode_name} .grid{{ grid-template-columns: repeat({cols_eff}, 1fr); }}
-}}
-"""
-                    )
-                except Exception:
-                    continue
-    return "\n".join(css_parts)
 
-def _render_page(
-    *,
-    active_tab: str,
-    active_cat: str,
-    error: str = "",
-    msg: str = "",
-    db: Optional[Dict[str, Any]] = None
-):
-    db = db or load_db()
-    prefs = db.get("prefs", {})
-    default_cat = (prefs.get("default_category") or FALLBACK_CATEGORY).strip() or FALLBACK_CATEGORY
-    hide_default = bool(prefs.get("hide_default_category", False))
-    view_mode = (prefs.get("view_mode") or DEFAULT_VIEW_MODE).strip().lower()
-    if view_mode not in ("comfortable", "compact"):
-        view_mode = DEFAULT_VIEW_MODE
+def _load_settings_live() -> Dict[str, Any]:
+    current = _load_json(SETTINGS_PATH, _default_settings())
+    return _merge_settings(_default_settings(), current)
+
+
+def _counts_by_cat(db: Dict[str, Any]) -> Dict[str, int]:
+    out: Dict[str, int] = {}
+    default_cat = db["prefs"]["default_category"]
+    for r in db.get("links", []):
+        if not isinstance(r, dict):
+            continue
+        c = _normalize(r.get("category")) or default_cat
+        out[c] = out.get(c, 0) + 1
+    return out
+
+
+def _categories(db: Dict[str, Any], hide_default: bool) -> List[str]:
+    """Alle categorieën (uit links + config), alfabetisch; optioneel default verbergen."""
+    cats: set[str] = set()
+    default_cat = db["prefs"]["default_category"]
+    for r in db.get("links", []):
+        if isinstance(r, dict):
+            cats.add(_normalize(r.get("category")) or default_cat)
+    if isinstance(db.get("categories"), dict):
+        cats.update(db["categories"].keys())
+    out = sorted(cats, key=lambda x: x.lower())
+    if hide_default and default_cat in out:
+        out.remove(default_cat)
+    return out
+
+
+def _grid_css(settings: Dict[str, Any]) -> str:
+    return _grid_css_from_settings(settings)
+
+
+def _render_page(*, active_tab: str, active_cat: str, error: str = "", msg: str = ""):
+    db = load_db()
+    prefs = db["prefs"]
+    default_cat = prefs["default_category"]
+    hide_default = bool(prefs["hide_default_category"])
+    view_mode = prefs["view_mode"]
 
     counts = _counts_by_cat(db)
-    total = len(db.get("links", []))
-    categories = _categories(db, hide_default=hide_default)
-    all_categories = _categories(db, hide_default=False)
+    categories = _categories(db, hide_default)
+    all_categories = _categories(db, False)
 
-    # Kleurmap
-    cat_colors = {}
-    if isinstance(db.get("categories"), dict):
-        for k, v in db["categories"].items():
-            if isinstance(v, dict):
-                cat_colors[k] = _safe_hex(v.get("color"))
+    # kleurmap
+    cat_colors: Dict[str, str] = {}
+    for k, v in (db.get("categories") or {}).items():
+        if isinstance(v, dict):
+            cat_colors[k] = _hex(v.get("color"), DEFAULT_COLOR)
 
-    # Filter & sort
-    rows = db.get("links", [])
-    rows = sorted(rows, key=lambda r: (((r.get("category") or "")).lower(), (r.get("name") or "").lower()))
-    if active_cat != "__ALL__":
-        filtered = [r for r in rows if (r.get("category") or "") == active_cat]
-    else:
+    # filter & sort
+    rows = sorted(db.get("links", []), key=lambda r: (((r.get("category") or "").lower()), ((r.get("name") or "").lower())))
+    if active_cat == "__ALL__":
         filtered = rows if not hide_default else [r for r in rows if (r.get("category") or "") != default_cat]
+    else:
+        filtered = [r for r in rows if (r.get("category") or "") == active_cat]
 
-    # Grid CSS opbouwen vanuit settings
-    grid_css = _grid_css_from_settings(_load_settings_live())
+    st = _load_settings_live()
+    grid_css = _grid_css(st)
 
-    # Body-class view mode doorgeven via main_layout body-classes? We renderen hier content;
-    # main_layout zet body classes, dus we injecteren geen extra class—de CSS target 'body.mode-<mode>' wordt hier NIET gebruikt.
-    # In deze content-template gebruiken we grid_css met selectors zonder dependency op body-mode toggles.
-
-    content_html = render_template_string(
+    html = render_template_string(
         CONTENT_TEMPLATE,
         error=error,
         msg=msg,
         categories=categories,
         all_categories=all_categories,
         counts=counts,
-        total=total,
+        total=len(rows),
         active_cat=active_cat,
         active_tab=active_tab,
         filtered=filtered,
-        prefs={"default_category": default_cat, "hide_default_category": hide_default},
+        prefs=prefs,
         view_mode=view_mode,
         cat_colors=cat_colors,
         grid_css=grid_css,
+        max_cols_comfortable=st["useful_links"]["modes"]["comfortable"]["max_columns"],
+        max_cols_compact=st["useful_links"]["modes"]["compact"]["max_columns"],
     )
-    # Laat hub layout header/menu/footer + main.css/js toevoegen
-    return hub_render_page(title="Nuttige links", content_html=content_html)
+    return hub_render_page(title="Nuttige links", content_html=html)
 
-# ===== Routes =====
+
+# ---------- ROUTES (INDEX, CRUD, PREFS, SETTINGS, CATEGORY MGMT) ----------
+def _write_grid_settings(comfort_max_cols: int, compact_max_cols: int) -> bool:
+    """Schrijf max_columns per mode naar config/settings.json (merge met bestaande waarden)."""
+    try:
+        current = _load_settings_live()
+        ul = current.setdefault("useful_links", {})
+        modes = ul.setdefault("modes", {})
+        modes.setdefault("comfortable", {})
+        modes.setdefault("compact", {})
+        # clamp waardes
+        cmf = max(1, min(12, int(comfort_max_cols)))
+        cmc = max(1, min(12, int(compact_max_cols)))
+        modes["comfortable"]["max_columns"] = cmf
+        modes["compact"]["max_columns"] = cmc
+        return _save_json(SETTINGS_PATH, current)
+    except Exception:
+        return False
+
+
 def register_web_routes(app: Flask):
-    @app.route("/links", methods=["GET"])
+    # ----- Index (tabs/filters)
+    @app.get("/links")
     def links_index():
-        active_cat = (request.args.get("cat") or "__ALL__").strip() or "__ALL__"
-        active_tab = "manage" if "manage" in ((request.args.get("tab") or "").lower()) else "links"
-        if (request.args.get("error") or "") or (request.args.get("msg") or ""):
-            # query feedback doorgeven (bij redirects)
-            return _render_page(active_tab=active_tab, active_cat=active_cat,
-                                error=request.args.get("error", ""), msg=request.args.get("msg", ""))
-        return _render_page(active_tab=active_tab, active_cat=active_cat)
+        active_cat = _normalize(request.args.get("cat") or "__ALL__") or "__ALL__"
+        active_tab = "manage" if "manage" in (request.args.get("tab") or "").lower() else "links"
+        return _render_page(
+            active_tab=active_tab,
+            active_cat=active_cat,
+            error=request.args.get("error", ""),
+            msg=request.args.get("msg", "")
+        )
 
-    # ---- Links CRUD ----
-    @app.route("/links/add", methods=["POST"])
+    # ----- Links: Create
+    @app.post("/links/add")
     def links_add():
         db = load_db()
-        name = (request.form.get("name") or "").strip()
-        url = (request.form.get("url") or "").strip()
-        info = (request.form.get("info") or "").strip()
-        cat = _normalize_cat(request.form.get("category") or "")
+        name = _normalize(request.form.get("name"))
+        url = _normalize(request.form.get("url"))
+        info = _normalize(request.form.get("info"))
+        cat = _normalize(request.form.get("category"))
         default_cat = db["prefs"]["default_category"]
 
         if not name or not url:
-            return redirect(url_for("links_index", cat="__ALL__", error="Naam en URL zijn verplicht.") + "#manage")
+            return redirect(url_for("links_index", cat="__ALL__", error="Naam en URL zijn verplicht.", tab="manage") + "#manage")
 
         if not cat:
             cat = default_cat
@@ -868,10 +876,11 @@ def register_web_routes(app: Flask):
         save_db(db)
         return redirect(url_for("links_index", cat=cat, msg="Link toegevoegd!", tab="links") + "#links")
 
-    @app.route("/links/delete/<rid>", methods=["POST"])
+    # ----- Links: Delete
+    @app.post("/links/delete/<rid>")
     def links_delete(rid: str):
         db = load_db()
-        cat_back = (request.form.get("cat") or "__ALL__").strip() or "__ALL__"
+        cat_back = _normalize(request.form.get("cat") or "__ALL__") or "__ALL__"
         before = len(db.get("links", []))
         db["links"] = [r for r in db.get("links", []) if r.get("id") != rid]
         after = len(db["links"])
@@ -879,27 +888,30 @@ def register_web_routes(app: Flask):
         msg = "Link verwijderd!" if after < before else "Link niet gevonden."
         return redirect(url_for("links_index", cat=cat_back, msg=msg, tab="links") + "#links")
 
-    @app.route("/links/update", methods=["POST"])
+    # ----- Links: Update
+    @app.post("/links/update")
     def links_update():
         db = load_db()
-        rid = (request.form.get("id") or "").strip()
-        name = (request.form.get("name") or "").strip()
-        url_val = (request.form.get("url") or "").strip()
-        info = (request.form.get("info") or "").strip()
-        cat = _normalize_cat(request.form.get("category") or "")
+        rid = _normalize(request.form.get("id"))
+        name = _normalize(request.form.get("name"))
+        urlv = _normalize(request.form.get("url"))
+        info = _normalize(request.form.get("info"))
+        cat = _normalize(request.form.get("category"))
         default_cat = db["prefs"]["default_category"]
 
-        if not rid or not name or not url_val:
+        if not rid or not name or not urlv:
             return redirect(url_for("links_index", cat="__ALL__", error="ID, Naam en URL zijn verplicht.", tab="links") + "#links")
+
         if not cat:
             cat = default_cat
 
         db["categories"].setdefault(cat, {"color": DEFAULT_COLOR})
+
         found = False
         for r in db.get("links", []):
             if r.get("id") == rid:
                 r["name"] = name
-                r["url"] = url_val
+                r["url"] = urlv
                 r["category"] = cat
                 r["info"] = info
                 r["updated"] = _now_iso()
@@ -912,20 +924,21 @@ def register_web_routes(app: Flask):
         save_db(db)
         return redirect(url_for("links_index", cat=cat, msg="Link aangepast!", tab="links") + "#links")
 
-    # ---- Voorkeuren ----
-    @app.route("/links/prefs", methods=["POST"])
+    # ----- Preferences
+    @app.post("/links/prefs")
     def links_prefs():
         db = load_db()
-        action = (request.form.get("action") or "").strip()
+        action = _normalize(request.form.get("action"))
 
+        # Toggle hide default
         if action == "toggle_hide_default":
-            hide_default = bool(request.form.get("hide_default_category"))
-            db["prefs"]["hide_default_category"] = hide_default
+            db["prefs"]["hide_default_category"] = bool(request.form.get("hide_default_category"))
             save_db(db)
             return redirect(url_for("links_index", cat="__ALL__", msg="Voorkeuren opgeslagen!", tab="manage") + "#manage")
 
+        # Default category
         if action == "set_default_category":
-            new_default = _normalize_cat(request.form.get("default_category") or "")
+            new_default = _normalize(request.form.get("default_category"))
             if not new_default:
                 return redirect(url_for("links_index", cat="__ALL__", error="Default category is verplicht.", tab="manage") + "#manage")
             db["prefs"]["default_category"] = new_default
@@ -937,38 +950,42 @@ def register_web_routes(app: Flask):
             save_db(db)
             return redirect(url_for("links_index", cat="__ALL__", msg="Default category opgeslagen!", tab="manage") + "#manage")
 
+        # View mode switch
         if action == "set_view_mode":
-            vm = (request.form.get("view_mode") or "").strip().lower()
+            vm = (_normalize(request.form.get("view_mode")) or "").lower()
             if vm not in ("comfortable", "compact"):
                 return redirect(url_for("links_index", cat="__ALL__", error="Onbekende view mode.", tab="links") + "#links")
             db["prefs"]["view_mode"] = vm
             save_db(db)
-            cat_back = (request.form.get("cat") or "__ALL__").strip() or "__ALL__"
+            cat_back = _normalize(request.form.get("cat") or "__ALL__") or "__ALL__"
             return redirect(url_for("links_index", cat=cat_back, msg="Weergave aangepast!", tab="links") + "#links")
 
+        # Onbekend
         return redirect(url_for("links_index", cat="__ALL__", error="Onbekende actie.", tab="manage") + "#manage")
 
-    # ---- Grid sliders (settings.json) ----
-    @app.route("/links/settings/grid", methods=["POST"])
+    # ----- Grid sliders (settings.json)
+    @app.post("/links/settings/grid")
     def links_settings_grid():
         try:
             mc_c = int(request.form.get("max_columns_comfortable", "6"))
             mc_k = int(request.form.get("max_columns_compact", "7"))
         except Exception:
             return redirect(url_for("links_index", cat="__ALL__", error="Ongeldige slider waarde.", tab="manage") + "#manage")
-        ok = _write_grid_settings(mc_c, mc_k)
-        if not ok:
+
+        if not _write_grid_settings(mc_c, mc_k):
             return redirect(url_for("links_index", cat="__ALL__", error="Kon settings.json niet schrijven.", tab="manage") + "#manage")
+
         return redirect(url_for("links_index", cat="__ALL__", msg="Grid-instelling opgeslagen in settings.json!", tab="manage") + "#manage")
 
-    # ---- Category color/rename/delete ----
-    @app.route("/links/category/color", methods=["POST"])
+    # ----- Category kleur/rename/delete
+    @app.post("/links/category/color")
     def links_category_color():
         db = load_db()
-        cat = _normalize_cat(request.form.get("category") or "")
-        color = _safe_hex(request.form.get("color") or "")
+        cat = _normalize(request.form.get("category"))
+        color = _hex(request.form.get("color"))
         if not cat:
             return redirect(url_for("links_index", cat="__ALL__", error="Geen categorie meegegeven.", tab="manage") + "#manage")
+        db.setdefault("categories", {})
         db["categories"].setdefault(cat, {"color": DEFAULT_COLOR})
         if not isinstance(db["categories"][cat], dict):
             db["categories"][cat] = {"color": DEFAULT_COLOR}
@@ -976,20 +993,20 @@ def register_web_routes(app: Flask):
         save_db(db)
         return redirect(url_for("links_index", cat=cat, msg="Kleur opgeslagen!", tab="manage") + "#manage")
 
-    @app.route("/links/category/rename", methods=["POST"])
+    @app.post("/links/category/rename")
     def links_category_rename():
         db = load_db()
-        old_cat = _normalize_cat(request.form.get("old_category") or "")
-        new_cat = _normalize_cat(request.form.get("new_category") or "")
-        color = request.form.get("color") or ""
-        move_links = bool(request.form.get("move_links"))
+        old_cat = _normalize(request.form.get("old_category"))
+        new_cat = _normalize(request.form.get("new_category"))
+        color = request.form.get("color")
+        move = bool(request.form.get("move_links"))
 
         if not old_cat:
             return redirect(url_for("links_index", cat="__ALL__", error="Oude categorie ontbreekt.", tab="manage") + "#manage")
         if not new_cat:
             return redirect(url_for("links_index", cat="__ALL__", error="Nieuwe categorie is verplicht.", tab="manage") + "#manage")
-        color_val = _safe_hex(color, "")
 
+        color_val = _hex(color, "")
         db.setdefault("categories", {})
         old_meta = db["categories"].get(old_cat, {"color": DEFAULT_COLOR})
         if not isinstance(old_meta, dict):
@@ -1002,23 +1019,26 @@ def register_web_routes(app: Flask):
         if color_val:
             db["categories"][new_cat]["color"] = color_val
 
-        if move_links:
+        if move:
             for r in db.get("links", []):
                 if isinstance(r, dict) and (r.get("category") or "") == old_cat:
                     r["category"] = new_cat
                     r["updated"] = _now_iso()
 
-        # default category updaten indien nodig
+        # default mee verhuizen indien nodig
         if (db.get("prefs", {}).get("default_category") or "") == old_cat:
             db["prefs"]["default_category"] = new_cat
 
-        # oude verwijderen als niet meer in gebruik
+        # oude categorie opruimen als niet meer in gebruik
         if old_cat != new_cat:
-            still_in_use = any(isinstance(r, dict) and (r.get("category") or "") == old_cat for r in db.get("links", []))
+            still_in_use = any(
+                isinstance(r, dict) and (r.get("category") or "") == old_cat
+                for r in db.get("links", [])
+            )
             if not still_in_use:
                 db["categories"].pop(old_cat, None)
 
-        # verzeker default bestaat
+        # verzeker default category bestaat
         default_cat = db["prefs"]["default_category"]
         db["categories"].setdefault(default_cat, {"color": DEFAULT_COLOR})
         if not isinstance(db["categories"][default_cat], dict):
@@ -1028,20 +1048,20 @@ def register_web_routes(app: Flask):
         save_db(db)
         return redirect(url_for("links_index", cat="__ALL__", msg="Categorie hernoemd!", tab="manage") + "#manage")
 
-    @app.route("/links/category/delete", methods=["POST"])
+    @app.post("/links/category/delete")
     def links_category_delete():
         db = load_db()
-        cat = _normalize_cat(request.form.get("category") or "")
+        cat = _normalize(request.form.get("category"))
         if not cat:
             return redirect(url_for("links_index", cat="__ALL__", error="Geen categorie meegegeven.", tab="manage") + "#manage")
 
-        # niet verwijderen als in gebruik of als default
+        # mag niet bij default of indien nog in gebruik
+        if (db.get("prefs", {}).get("default_category") or "") == cat:
+            return redirect(url_for("links_index", cat="__ALL__", error="Dit is je default category. Kies eerst een andere default.", tab="manage") + "#manage")
+
         in_use = any(isinstance(r, dict) and (r.get("category") or "") == cat for r in db.get("links", []))
         if in_use:
             return redirect(url_for("links_index", cat=cat, error="Categorie heeft nog links. Verplaats die eerst.", tab="manage") + "#manage")
-
-        if (db.get("prefs", {}).get("default_category") or "") == cat:
-            return redirect(url_for("links_index", cat="__ALL__", error="Dit is je default category. Kies eerst een andere default.", tab="manage") + "#manage")
 
         if isinstance(db.get("categories"), dict) and cat in db["categories"]:
             db["categories"].pop(cat, None)
@@ -1050,8 +1070,38 @@ def register_web_routes(app: Flask):
 
         return redirect(url_for("links_index", cat="__ALL__", error="Categorie niet gevonden.", tab="manage") + "#manage")
 
-# Standalone test
+
+# ---------- BOOTSTRAP / FIRST-RUN HELPERS ----------
+def ensure_bootstrap_files() -> None:
+    """
+    Zorgt dat de noodzakelijke configbestanden bestaan met minimum defaults.
+    - config/useful_links.json
+    - config/settings.json (alleen de 'useful_links' sectie is relevant)
+    """
+    if not DATA_PATH.exists():
+        _save_json(DATA_PATH, _default_db())
+    if not SETTINGS_PATH.exists():
+        _save_json(SETTINGS_PATH, _default_settings())
+
+
+def register_health_routes(app: Flask) -> None:
+    """Kleine health-check endpoints om snel te kunnen testen."""
+    @app.get("/links/_health")
+    def _links_health():
+        db = load_db()
+        return {
+            "ok": True,
+            "links": len(db.get("links", [])),
+            "categories": len(db.get("categories", {}) or {}),
+            "default_category": db.get("prefs", {}).get("default_category"),
+        }
+
+
+# ---------- STANDALONE RUNNER (optioneel) ----------
 if __name__ == "__main__":
     app = Flask(__name__)
+    ensure_bootstrap_files()
+    register_health_routes(app)
     register_web_routes(app)
+    # Gebruik 127.0.0.1 en vaste poort zodat je parallel met de Hub kan testen
     app.run("127.0.0.1", 5460, debug=True)

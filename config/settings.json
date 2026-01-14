@@ -1,0 +1,49 @@
+{
+  "useful_links": {
+    "default_mode": "comfortable",
+    "modes": {
+      "comfortable": {
+        "min_width": 280,
+        "gap": 14,
+        "card_padding_y": 10,
+        "card_padding_x": 12,
+        "breakpoints": [
+          [
+            1400,
+            4
+          ],
+          [
+            1600,
+            5
+          ],
+          [
+            1900,
+            6
+          ]
+        ],
+        "max_columns": 3
+      },
+      "compact": {
+        "min_width": 240,
+        "gap": 10,
+        "card_padding_y": 8,
+        "card_padding_x": 10,
+        "breakpoints": [
+          [
+            1400,
+            5
+          ],
+          [
+            1600,
+            6
+          ],
+          [
+            1900,
+            7
+          ]
+        ],
+        "max_columns": 7
+      }
+    }
+  }
+}

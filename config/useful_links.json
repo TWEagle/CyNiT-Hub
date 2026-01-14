@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "links": [
+    {
+      "id": "644b3526-7423-4948-b911-b9eefb66df89",
+      "name": "IDM",
+      "url": "https://gebruikersbeheer.vlaanderen.be",
+      "category": "Veiligheidsbouwstenen",
+      "info": "",
+      "created": "2025-12-16T15:18:48",
+      "updated": "2025-12-16T15:18:48"
+    }
+  ],
+  "categories": {
+    "Algemeen": {
+      "color": "#0031f5"
+    },
+    "Veiligheidsbouwstenen": {
+      "color": "#0076f5"
+    }
+  },
+  "prefs": {
+    "hide_general": true,
+    "default_category": "Algemeen",
+    "hide_default_category": true,
+    "view_mode": "compact"
+  }
+}
