@@ -1,4 +1,3 @@
-
 {
   "tools": [
     {
@@ -10,9 +9,9 @@
       "icon": "📄",
       "description": "VOICA1 tool",
       "accent": "#76dcfe",
-      "accent_mode": "left",
-      "accent_width": 19,
-      "ring_width": 12,
+      "accent_mode": "ring",
+      "accent_width": 40,
+      "ring_width": 10,
       "ring_glow": 22,
       "enabled": true,
       "hidden": false
@@ -26,9 +25,9 @@
       "icon": "🔐",
       "description": "Genereer een gesigneerde JWT met private JWK (iss=sub, aud, iat, exp).",
       "accent": "#00ffaa",
-      "accent_mode": "left",
+      "accent_mode": "ring",
       "accent_width": 40,
-      "ring_width": 12,
+      "ring_width": 10,
       "ring_glow": 50,
       "enabled": true,
       "hidden": false
@@ -41,8 +40,8 @@
       "icon_web": "🔎",
       "icon": "🔎",
       "description": "Decodeer certificates/CSRs (PEM/DER), bekijk velden/EXTs en exporteer (JSON/CSV/HTML/MD/XLSX/ZIP).",
-      "accent": "#ffae00",
-      "accent_mode": "left",
+      "accent": "#fcd583",
+      "accent_mode": "ring",
       "accent_width": 32,
       "ring_width": 10,
       "ring_glow": 30,
@@ -58,8 +57,24 @@
       "icon": "🖼️",
       "description": "Converteer afbeeldingen (PNG/JPG/GIF/WebP) naar multi-size .ico met contain/crop en padding.",
       "accent": "#35e6df",
-      "accent_mode": "left",
+      "accent_mode": "ring",
       "accent_width": 24,
+      "ring_width": 10,
+      "ring_glow": 24,
+      "enabled": true,
+      "hidden": false
+    },
+    {
+      "id": "useful_links",
+      "name": "Nuttige links",
+      "script": "useful_links.py",
+      "web_path": "/links",
+      "icon_web": "🔗",
+      "icon": "🔗",
+      "description": "Beheer en open je snelle links met categorieën, kleuren en voorkeuren.",
+      "accent": "#00f700",
+      "accent_mode": "ring",
+      "accent_width": 22,
       "ring_width": 10,
       "ring_glow": 24,
       "enabled": true,

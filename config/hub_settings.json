@@ -4,16 +4,16 @@
   "brand_beheer": "CyNiT Beheer",
   "logo_src": "/images/logo.png?v=1",
   "favicon_ico": "/images/logo.ico",
-  "home_columns": 4,
+  "home_columns": 3,
   "card_bg": true,
   "card_round": true,
   "button_bg": true,
   "button_rounded": true,
   "show_section_order": false,
   "sections_order": [
+    "layout",
     "app",
-    "branding",
-    "layout"
+    "branding"
   ],
   "section_order": [
     "layout",

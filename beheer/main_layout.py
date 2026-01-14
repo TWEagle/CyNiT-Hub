@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from flask import url_for, request
+from flask import request, url_for
 
 # =========================
 # Paths
@@ -21,12 +21,17 @@ HUB_SETTINGS_JSON = CONFIG_DIR / "hub_settings.json"
 def load_tools() -> List[dict]:
     if not TOOLS_JSON.exists():
         return []
-    data = json.loads(TOOLS_JSON.read_text(encoding="utf-8"))
+    raw = TOOLS_JSON.read_text(encoding="utf-8").strip()
+    if not raw:
+        return []
+    data = json.loads(raw)
+
     if isinstance(data, dict) and "tools" in data:
         data = data["tools"]
+
     if not isinstance(data, list):
         return []
-    return data
+    return [t for t in data if isinstance(t, dict)]
 
 
 def load_hub_settings() -> Dict[str, Any]:
@@ -52,6 +57,11 @@ def load_hub_settings() -> Dict[str, Any]:
 
     try:
         data = json.loads(raw)
+
+        # legacy support: [{...}]
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            data = data[0]
+
         if isinstance(data, dict):
             defaults.update(data)
     except Exception:
@@ -60,23 +70,11 @@ def load_hub_settings() -> Dict[str, Any]:
     return defaults
 
 
-def _hex_to_rgb(accent: str) -> str:
-    s = (accent or "").strip().lstrip("#")
-    if len(s) == 3:
-        s = "".join(ch * 2 for ch in s)
-    if len(s) != 6:
-        return "53,230,223"
-    try:
-        r = int(s[0:2], 16)
-        g = int(s[2:4], 16)
-        b = int(s[4:6], 16)
-        return f"{r},{g},{b}"
-    except Exception:
-        return "53,230,223"
-
-
+# =========================
+# Menu helpers
+# =========================
 def _tool_items(tools: List[dict]) -> List[dict]:
-    items = []
+    items: List[dict] = []
     for t in tools:
         if not t.get("enabled", True):
             continue
@@ -89,12 +87,14 @@ def _tool_items(tools: List[dict]) -> List[dict]:
 
         icon = t.get("icon_web") or t.get("icon") or "🧩"
 
-        items.append({
-            "name": t.get("name", t.get("id", "Tool")),
-            "icon": icon,
-            "desc": t.get("description", ""),
-            "href": web_path or "/",
-        })
+        items.append(
+            {
+                "name": t.get("name", t.get("id", "Tool")),
+                "icon": icon,
+                "desc": t.get("description", ""),
+                "href": web_path or "/",
+            }
+        )
     return items
 
 
@@ -102,9 +102,9 @@ def _beheer_items() -> List[dict]:
     return [
         {"name": "Tools Editor", "icon": "⚙️", "desc": "Tools beheren", "href": "/beheer/tools"},
         {"name": "Config",       "icon": "🧾", "desc": "settings.json beheren", "href": "/beheer/config"},
-        {"name": "Theme",        "icon": "🎨", "desc": "theme.json beheren", "href": "/beheer/theme"},
-        {"name": "Logs",         "icon": "📜", "desc": "logs viewer", "href": "/beheer/logs"},
-        {"name": "Hub Editor",   "icon": "🧭", "desc": "hub settings", "href": "/beheer/hub"},
+        {"name": "Theme",        "icon": "🎨", "desc": "Theme configuratie", "href": "/beheer/theme"},
+        {"name": "Logs",         "icon": "📜", "desc": "Logs bekijken", "href": "/beheer/logs"},
+        {"name": "Hub Editor",   "icon": "🧭", "desc": "Hub instellingen", "href": "/beheer/hub"},
     ]
 
 
@@ -115,18 +115,20 @@ def render_page(*, title: str, content_html: str) -> str:
     path = request.path or ""
     hub = load_hub_settings()
 
+    # Brand selection
     if path.startswith("/beheer"):
-        brand = hub.get("brand_beheer", "CyNiT Beheer")
+        brand = str(hub.get("brand_beheer") or "CyNiT Beheer")
     else:
-        brand = hub.get("brand_tools", "CyNiT Tools")
+        brand = str(hub.get("brand_tools") or "CyNiT Tools")
 
+    # ✅ Brand | Page — both header AND <title>
     page_title = f"{brand} | {title}" if title else brand
 
     css_href = url_for("static", filename="main.css")
     js_src = url_for("static", filename="main.js")
 
-    logo_src = hub.get("logo_src") or "/images/logo.png?v=1"
-    favicon_ico = hub.get("favicon_ico") or "/images/logo.ico"
+    logo_src = str(hub.get("logo_src") or "/images/logo.png?v=1")
+    favicon_ico = str(hub.get("favicon_ico") or "/images/logo.ico")
 
     tools = _tool_items(load_tools())
     beheer = _beheer_items()
