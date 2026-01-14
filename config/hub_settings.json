@@ -1,0 +1,11 @@
+ [
+    {
+    "brand_tools": "CyNiT Tools",
+    "brand_beheer": "CyNiT Beheer",
+    "logo_src": "/images/logo.png?v=1",
+    "favicon_ico": "/images/logo.ico",
+    "home_columns": 1,
+    "button_bg": true,
+    "button_rounded": true
+    }
+ ]

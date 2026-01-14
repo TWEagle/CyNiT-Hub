@@ -8,8 +8,6 @@
 }
 
 *{ box-sizing:border-box; }
-html,body{ height:100%; }
-
 html,body{ height:100%; background:#000; }
 
 body, body.page{
@@ -52,9 +50,7 @@ body, body.page{
   align-items:center;
   gap:10px;
   justify-content:flex-start;
-
-  /* KEY FIX: altijd boven de center/brand */
-  z-index: 1001;
+  z-index: 1001; /* boven brand */
 }
 .topbar-right{
   display:flex;
@@ -71,9 +67,7 @@ body, body.page{
   border-radius: 12px;
   padding: 8px 10px;
   cursor:pointer;
-
-  /* KEY FIX: klikbaar maken */
-  pointer-events: auto;
+  pointer-events: auto; /* klikbaar */
 }
 .iconbtn:hover{ background: rgba(255,255,255,.06); }
 .iconbtn-big{ font-size: 26px; line-height: 1; }
@@ -90,7 +84,6 @@ body, body.page{
   max-width: 520px;
   margin: 0 auto;
 
-  /* KEY FIX: brand mag clicks niet “wegkapen” */
   position: relative;
   z-index: 1000;
 }
@@ -145,12 +138,6 @@ body, body.page{
 .dropdown-empty{ padding: 10px; color: var(--muted); }
 
 /* ===== Main ===== */
-.main{
-  /* KEY FIX: neemt alle ruimte zodat footer altijd onderaan staat */
-  flex: 1;
-  padding: 22px 18px;
-}
-
 .pagewrap{ max-width: 1200px; margin: 0 auto; }
 
 .panel{
@@ -161,7 +148,7 @@ body, body.page{
   box-shadow: var(--shadow);
 }
 
-/* cards */
+/* ===== Cards container ===== */
 .cards{
   margin-top: 16px;
   display:flex;
@@ -169,19 +156,71 @@ body, body.page{
   gap: 14px;
 }
 
+/* Home grid mode */
+.cards.grid{
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(260px, 1fr));
+  gap: 14px;
+}
+
+/* ===== Toolcards (single source of truth) ===== */
 .toolcard{
-  --accent: #00f700;
+  /* per-card styling via inline style / defaults */
+  --accent: #35e6df;
+  --accent-rgb: 53,230,223;
+
+  --accent-width: 5px;  /* stripe width */
+  --ring-width: 1px;    /* ring thickness (inset) */
+  --ring-glow: 18px;    /* glow blur radius */
+
   display:block;
   text-decoration:none;
   color: var(--text);
+
   background: rgba(10,15,18,.68);
   border: 1px solid var(--border);
-  border-left: 5px solid var(--accent);
   border-radius: 18px;
+
   padding: 14px 16px;
   box-shadow: var(--shadow);
+
+  position: relative;
+  overflow: hidden;
+
+  /* default mode = stripe */
+  border-left: var(--accent-width) solid var(--accent);
 }
-.toolcard:hover{ background: rgba(10,15,18,.80); }
+
+.toolcard:hover{
+  background: rgba(10,15,18,.80);
+}
+
+/* ring mode: accent rondom (inset ring + glow) */
+.toolcard.accent-ring{
+  border-left: var(--ring-width) solid rgba(var(--accent-rgb), .35);
+  box-shadow:
+    var(--shadow),
+    0 0 0 var(--ring-width) rgba(var(--accent-rgb), .25) inset,
+    0 0 var(--ring-glow) rgba(var(--accent-rgb), .10);
+}
+
+/* bg mode: accent als subtiele achtergrond + ook geringt */
+.toolcard.accent-bg{
+  border-left: var(--ring-width) solid rgba(var(--accent-rgb), .25);
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb), .18),
+      rgba(var(--accent-rgb), .05)
+    ),
+    rgba(10,15,18,.68);
+
+  box-shadow:
+    var(--shadow),
+    0 0 0 var(--ring-width) rgba(var(--accent-rgb), .22) inset,
+    0 0 var(--ring-glow) rgba(var(--accent-rgb), .10);
+}
+
+/* content inside card */
 .toolcard-head{
   display:flex;
   align-items:center;
@@ -218,3 +257,157 @@ body, body.page{
   cursor:pointer;
 }
 .btn:hover{ background: rgba(255,255,255,.06); }
+
+/* ===== Button toggles (hub_settings) ===== */
+body.btnbg-off .iconbtn,
+body.btnbg-off .btn{
+  background: transparent !important;
+}
+
+body.btnround-off .iconbtn,
+body.btnround-off .btn{
+  border-radius: 0 !important;
+}
+
+/* =========================
+   GLOBAL INPUTS (FIX)
+   ========================= */
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+input[type="email"],
+input[type="url"],
+textarea,
+select{
+  background: rgba(0,0,0,.65);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 12px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+textarea:focus,
+select:focus{
+  border-color: rgba(53,230,223,.55);
+  box-shadow: 0 0 0 2px rgba(53,230,223,.12);
+}
+
+select{
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+/* dropdown options readable */
+select option{
+  background: #0b0f12;
+  color: var(--text);
+}
+
+/* color picker mag gewoon blijven */
+input[type="color"]{
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 12px;
+  padding: 0;
+  width: 44px;
+  height: 36px;
+}
+
+/* inputs + tables (generic helpers) */
+.in{
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  outline: none;
+}
+.in-small{ width: 130px; }
+
+.tbl{
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+.tbl th, .tbl td{
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  text-align: left;
+}
+.tbl th{
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* JWT page styling (unchanged) */
+.jwt-panel {
+  margin: 0 auto;
+  max-width: 980px;
+  background: rgba(10,15,18,.85);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 32px 28px;
+  display: block;
+}
+.jwt-flex {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+}
+.jwt-info {
+  flex: 1 1 0;
+  min-width: 240px;
+  color: var(--text);
+}
+.jwt-info h2 { margin-top: 0; }
+.jwt-info ul { margin: 12px 0 0 18px; color: var(--muted); }
+.jwt-info .muted { color: var(--muted); font-size: 13px; margin-top: 18px; }
+.jwt-form {
+  flex: 1 1 0;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.jwt-form label {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+.jwt-form .in {
+  background: #111;
+  color: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.jwt-form .in:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.jwt-form button.btn {
+  margin-top: 10px;
+  background: var(--accent);
+  color: #000;
+  font-weight: bold;
+  border: none;
+  border-radius: 10px;
+  transition: background .2s;
+}
+.jwt-form button.btn:hover {
+  background: #23bdb6;
+}
+@media (max-width: 800px) {
+  .jwt-flex { flex-direction: column; gap: 18px; }
+  .jwt-info, .jwt-form { min-width: 0; }
+}

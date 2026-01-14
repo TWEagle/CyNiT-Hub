@@ -74,3 +74,31 @@
     if (menuBeheer && btnBeheer && menuBeheer.classList.contains("open")) positionUnder(menuBeheer, btnBeheer, true);
   });
 })();
+
+
+// Zet dit na DOM load of onderaan je HTML
+document.addEventListener('DOMContentLoaded', function() {
+  const issuerInput = document.getElementById('issuer');
+  const subjectInput = document.getElementById('subject');
+  if (issuerInput && subjectInput) {
+    function syncSubject() { subjectInput.value = issuerInput.value; }
+    issuerInput.addEventListener('input', syncSubject);
+    syncSubject();
+  }
+
+  // Copy token knop
+  const copyBtn = document.getElementById('copyBtn');
+  const tokenText = document.getElementById('tokenText');
+  if (copyBtn && tokenText) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(tokenText.textContent.trim());
+        copyBtn.textContent = 'Gekopieerd ✔';
+        copyBtn.disabled = true;
+        setTimeout(() => { copyBtn.textContent = 'Kopieer token'; copyBtn.disabled = false; }, 2000);
+      } catch (e) {
+        alert('Kopiëren mislukt: ' + e.message);
+      }
+    });
+  }
+});

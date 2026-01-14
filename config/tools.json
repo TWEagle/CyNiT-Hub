@@ -1,13 +1,43 @@
-[
-  {
-    "id": "voica1",
-    "name": "VOICA1 Certificaten",
-    "script": "voica1.py",
-    "web_path": "/voica1",
-    "icon_web": "📄",
-    "description": "VOICA1 tool",
-    "accent": "#00ff66",
-    "enabled": true,
-    "hidden": false
+{
+  "tools": [
+    {
+      "id": "voica1",
+      "name": "VOICA1 Certificaten",
+      "script": "voica1.py",
+      "web_path": "/voica1",
+      "icon_web": "📄",
+      "icon": "📄",
+      "description": "VOICA1 tool",
+      "accent": "#00bfff",
+      "accent_mode": "left",
+      "accent_width": 19,
+      "ring_width": 12,
+      "ring_glow": 22,
+      "enabled": true,
+      "hidden": false
+    },
+    {
+      "id": "jwt_ui",
+      "name": "JWT Generator",
+      "script": "jwt_ui.py",
+      "web_path": "/jwt",
+      "icon_web": "🔐",
+      "icon": "🔐",
+      "description": "Genereer een gesigneerde JWT met private JWK (iss=sub, aud, iat, exp).",
+      "accent": "#0bd592",
+      "accent_mode": "bg",
+      "accent_width": 40,
+      "ring_width": 12,
+      "ring_glow": 50,
+      "enabled": true,
+      "hidden": false
+    }
+  ],
+  "ui": {
+    "home_columns": 6,
+    "card_bg": true,
+    "card_round": true,
+    "button_bg": true,
+    "button_rounded": true
   }
-]
+}
