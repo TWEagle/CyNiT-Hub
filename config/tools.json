@@ -1,3 +1,4 @@
+
 {
   "tools": [
     {
@@ -8,7 +9,7 @@
       "icon_web": "📄",
       "icon": "📄",
       "description": "VOICA1 tool",
-      "accent": "#00bfff",
+      "accent": "#76dcfe",
       "accent_mode": "left",
       "accent_width": 19,
       "ring_width": 12,
@@ -24,20 +25,45 @@
       "icon_web": "🔐",
       "icon": "🔐",
       "description": "Genereer een gesigneerde JWT met private JWK (iss=sub, aud, iat, exp).",
-      "accent": "#0bd592",
-      "accent_mode": "bg",
+      "accent": "#00ffaa",
+      "accent_mode": "left",
       "accent_width": 40,
       "ring_width": 12,
       "ring_glow": 50,
       "enabled": true,
       "hidden": false
+    },
+    {
+      "id": "cert_viewer",
+      "name": "Certificate / CSR Viewer",
+      "script": "cert_viewer.py",
+      "web_path": "/cert",
+      "icon_web": "🔎",
+      "icon": "🔎",
+      "description": "Decodeer certificates/CSRs (PEM/DER), bekijk velden/EXTs en exporteer (JSON/CSV/HTML/MD/XLSX/ZIP).",
+      "accent": "#ffae00",
+      "accent_mode": "left",
+      "accent_width": 32,
+      "ring_width": 10,
+      "ring_glow": 30,
+      "enabled": true,
+      "hidden": false
+    },
+    {
+      "id": "ico_converter",
+      "name": "Image → ICO Converter",
+      "script": "convert_to_ico.py",
+      "web_path": "/ico",
+      "icon_web": "🖼️",
+      "icon": "🖼️",
+      "description": "Converteer afbeeldingen (PNG/JPG/GIF/WebP) naar multi-size .ico met contain/crop en padding.",
+      "accent": "#35e6df",
+      "accent_mode": "left",
+      "accent_width": 24,
+      "ring_width": 10,
+      "ring_glow": 24,
+      "enabled": true,
+      "hidden": false
     }
-  ],
-  "ui": {
-    "home_columns": 6,
-    "card_bg": true,
-    "card_round": true,
-    "button_bg": true,
-    "button_rounded": true
-  }
+  ]
 }

@@ -4,6 +4,7 @@ import json
 import logging
 import importlib
 from pathlib import Path
+from typing import Any, Dict
 
 from flask import Flask, send_from_directory
 
@@ -19,6 +20,7 @@ logging.basicConfig(
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_DIR = BASE_DIR / "config"
 TOOLS_JSON = CONFIG_DIR / "tools.json"
+HUB_SETTINGS_JSON = CONFIG_DIR / "hub_settings.json"
 IMAGES_DIR = BASE_DIR / "images"
 
 
@@ -26,34 +28,87 @@ IMAGES_DIR = BASE_DIR / "images"
 # Config loaders
 # =========================
 def load_tools_config() -> list[dict]:
-    """
-    Supports:
-      - tools.json as LIST
-      - tools.json as DICT: {"tools":[...], "ui":{...}}
-    """
     if not TOOLS_JSON.exists():
         return []
-    raw = TOOLS_JSON.read_text(encoding="utf-8").strip()
-    if not raw:
+    data = json.loads(TOOLS_JSON.read_text(encoding="utf-8"))
+
+    # allow {"tools":[...]}
+    if isinstance(data, dict) and "tools" in data:
+        data = data["tools"]
+
+    if not isinstance(data, list):
         return []
+    return [t for t in data if isinstance(t, dict)]
+
+
+def load_hub_settings() -> Dict[str, Any]:
+    """
+    Supports:
+      - dict (preferred, future proof)
+      - legacy: [ { ... } ]  (your old format)
+    """
+    defaults: Dict[str, Any] = {
+        "flask_app_name": "CyNiT-Hub",
+        "brand_tools": "CyNiT Tools",
+        "brand_beheer": "CyNiT Beheer",
+        "logo_src": "/images/logo.png?v=1",
+        "favicon_ico": "/images/logo.ico",
+        "home_columns": 2,
+        "card_bg": True,
+        "card_round": True,
+        "button_bg": True,
+        "button_rounded": True,
+
+        # optional: section ordering (from new hub_editor)
+        "show_section_order": False,
+        "sections_order": ["app", "branding", "layout"],
+    }
+
+    if not HUB_SETTINGS_JSON.exists():
+        return dict(defaults)
+
+    raw = HUB_SETTINGS_JSON.read_text(encoding="utf-8").strip()
+    if not raw:
+        return dict(defaults)
+
     try:
         data = json.loads(raw)
+
+        # legacy: [ { ... } ]
+        if isinstance(data, list):
+            if data and isinstance(data[0], dict):
+                defaults.update(data[0])
+
+        # dict: { ... }
+        elif isinstance(data, dict):
+            defaults.update(data)
+
     except Exception:
-        return []
+        pass
 
-    if isinstance(data, list):
-        return [t for t in data if isinstance(t, dict)]
+    # normalize a bit
+    try:
+        defaults["home_columns"] = int(defaults.get("home_columns", 2) or 2)
+    except Exception:
+        defaults["home_columns"] = 2
 
-    if isinstance(data, dict) and isinstance(data.get("tools"), list):
-        return [t for t in data["tools"] if isinstance(t, dict)]
+    for k in ("card_bg", "card_round", "button_bg", "button_rounded", "show_section_order"):
+        defaults[k] = bool(defaults.get(k, True if k != "show_section_order" else False))
 
-    return []
+    # normalize order
+    order = defaults.get("sections_order")
+    if not isinstance(order, list):
+        order = ["app", "branding", "layout"]
+    order = [x for x in order if x in ("app", "branding", "layout")]
+    for x in ("app", "branding", "layout"):
+        if x not in order:
+            order.append(x)
+    defaults["sections_order"] = order[:3]
+
+    return dict(defaults)
 
 
 def _hex_to_rgb(accent: str) -> str:
-    """
-    '#00ff66' -> '0,255,102' (fallback: CyNiT accent)
-    """
     s = (accent or "").strip().lstrip("#")
     if len(s) == 3:
         s = "".join(ch * 2 for ch in s)
@@ -68,19 +123,20 @@ def _hex_to_rgb(accent: str) -> str:
         return "53,230,223"
 
 
-def _clamp_int(val, default: int, lo: int, hi: int) -> int:
-    try:
-        n = int(val)
-    except Exception:
-        return default
-    return max(lo, min(hi, n))
-
-
 # =========================
 # Flask app factory
 # =========================
 def create_app() -> Flask:
-    app = Flask(__name__, static_folder="static", static_url_path="/static")
+    hub = load_hub_settings()
+
+    # ---- IMPORTANT FIX ----
+    # This affects: "Serving Flask app '...'"
+    # It will no longer show "master".
+    app_name = str(hub.get("flask_app_name") or "CyNiT-Hub").strip() or "CyNiT-Hub"
+    app = Flask(app_name, static_folder="static", static_url_path="/static")
+
+    # your own forced config (used in layout)
+    app.config["FLASK_APP_NAME"] = app_name
 
     # ===== Images =====
     @app.get("/images/<path:filename>")
@@ -98,10 +154,11 @@ def create_app() -> Flask:
     # ===== Home =====
     @app.get("/")
     def home():
-        from beheer.main_layout import render_page, load_tools, load_hub_settings
+        from beheer.main_layout import render_page, load_tools
 
-        hub = load_hub_settings()
-        cols = _clamp_int(hub.get("home_columns", 2), default=2, lo=1, hi=6)
+        hub2 = load_hub_settings()
+        cols = int(hub2.get("home_columns", 2) or 2)
+        cols = max(1, min(12, cols))
 
         tools_cards = []
         for t in load_tools():
@@ -119,29 +176,21 @@ def create_app() -> Flask:
             accent_rgb = _hex_to_rgb(accent)
 
             accent_mode = (t.get("accent_mode") or "left").strip().lower()
-            if accent_mode not in ("left", "ring", "bg"):
-                accent_mode = "left"
-
-            accent_width = _clamp_int(t.get("accent_width", 5), default=5, lo=0, hi=40)
-            ring_width = _clamp_int(t.get("ring_width", 1), default=1, lo=0, hi=12)
-            ring_glow = _clamp_int(t.get("ring_glow", 18), default=18, lo=0, hi=80)
-
-            classes = ["toolcard"]
+            mode_class = ""
             if accent_mode == "ring":
-                classes.append("accent-ring")
+                mode_class = "accent-ring"
             elif accent_mode == "bg":
-                classes.append("accent-bg")
+                mode_class = "accent-bg"
+
+            accent_width = int(t.get("accent_width") or 5)
+            ring_width = int(t.get("ring_width") or 1)
+            ring_glow = int(t.get("ring_glow") or 18)
 
             tools_cards.append(
                 f"""
-                <a class="{' '.join(classes)}" href="{web_path}"
-                   style="
-                     --accent:{accent};
-                     --accent-rgb:{accent_rgb};
-                     --accent-width:{accent_width}px;
-                     --ring-width:{ring_width}px;
-                     --ring-glow:{ring_glow}px;
-                   ">
+                <a class="toolcard {mode_class}" href="{web_path}"
+                   style="--accent:{accent}; --accent-rgb:{accent_rgb};
+                          --accent-width:{accent_width}px; --ring-width:{ring_width}px; --ring-glow:{ring_glow}px;">
                   <div class="toolcard-head">
                     <div class="toolcard-icon">{icon}</div>
                     <div>{t.get("name","Tool")}</div>
@@ -161,7 +210,6 @@ def create_app() -> Flask:
             {''.join(tools_cards) if tools_cards else '<div class="panel">Geen tools geactiveerd.</div>'}
           </div>
         """
-
         return render_page(title="Home", content_html=content)
 
     return app
@@ -211,6 +259,8 @@ def main() -> None:
     app = create_app()
     register_beheer(app)
     register_tools(app)
+
+    log.info("FLASK_APP_NAME forced: %s", app.config.get("FLASK_APP_NAME"))
     app.run(debug=True)
 
 

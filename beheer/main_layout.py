@@ -2,72 +2,80 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, Dict, List
+
 from flask import url_for, request
 
 # =========================
 # Paths
 # =========================
-BASE_DIR = Path(__file__).resolve().parents[1]   # CyNiT-Hub/
+BASE_DIR = Path(__file__).resolve().parents[1]  # CyNiT-Hub/
 CONFIG_DIR = BASE_DIR / "config"
 TOOLS_JSON = CONFIG_DIR / "tools.json"
+HUB_SETTINGS_JSON = CONFIG_DIR / "hub_settings.json"
 
 
 # =========================
 # Loaders
 # =========================
-def load_tools() -> list[dict]:
-    """
-    Supports:
-      - tools.json as LIST
-      - tools.json as DICT: {"tools":[...], "ui":{...}}
-    """
+def load_tools() -> List[dict]:
     if not TOOLS_JSON.exists():
         return []
-    raw = TOOLS_JSON.read_text(encoding="utf-8").strip()
-    if not raw:
+    data = json.loads(TOOLS_JSON.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and "tools" in data:
+        data = data["tools"]
+    if not isinstance(data, list):
         return []
+    return data
+
+
+def load_hub_settings() -> Dict[str, Any]:
+    defaults: Dict[str, Any] = {
+        "flask_app_name": "CyNiT-Hub",
+        "brand_tools": "CyNiT Tools",
+        "brand_beheer": "CyNiT Beheer",
+        "logo_src": "/images/logo.png?v=1",
+        "favicon_ico": "/images/logo.ico",
+        "home_columns": 2,
+        "card_bg": True,
+        "card_round": True,
+        "button_bg": True,
+        "button_rounded": True,
+    }
+
+    if not HUB_SETTINGS_JSON.exists():
+        return defaults
+
+    raw = HUB_SETTINGS_JSON.read_text(encoding="utf-8").strip()
+    if not raw:
+        return defaults
 
     try:
         data = json.loads(raw)
+        if isinstance(data, dict):
+            defaults.update(data)
     except Exception:
-        return []
+        pass
 
-    if isinstance(data, list):
-        return [t for t in data if isinstance(t, dict)]
-
-    if isinstance(data, dict) and isinstance(data.get("tools"), list):
-        return [t for t in data["tools"] if isinstance(t, dict)]
-
-    return []
+    return defaults
 
 
-def load_hub_settings() -> dict:
-    """
-    Leest globale hub settings (ui) uit config/tools.json.
-    Compatibel met:
-      - tools.json als LIST  -> {}
-      - tools.json als DICT  -> data.get("ui", {})
-    """
-    if not TOOLS_JSON.exists():
-        return {}
-
-    raw = TOOLS_JSON.read_text(encoding="utf-8").strip()
-    if not raw:
-        return {}
-
+def _hex_to_rgb(accent: str) -> str:
+    s = (accent or "").strip().lstrip("#")
+    if len(s) == 3:
+        s = "".join(ch * 2 for ch in s)
+    if len(s) != 6:
+        return "53,230,223"
     try:
-        data = json.loads(raw)
+        r = int(s[0:2], 16)
+        g = int(s[2:4], 16)
+        b = int(s[4:6], 16)
+        return f"{r},{g},{b}"
     except Exception:
-        return {}
-
-    if isinstance(data, dict):
-        ui = data.get("ui", {})
-        return ui if isinstance(ui, dict) else {}
-
-    return {}
+        return "53,230,223"
 
 
-def _tool_items(tools: list[dict]) -> list[dict]:
+def _tool_items(tools: List[dict]) -> List[dict]:
     items = []
     for t in tools:
         if not t.get("enabled", True):
@@ -90,13 +98,13 @@ def _tool_items(tools: list[dict]) -> list[dict]:
     return items
 
 
-def _beheer_items() -> list[dict]:
+def _beheer_items() -> List[dict]:
     return [
-        {"name": "Tools Editor", "icon": "⚙️", "desc": "Hide/show + accent + naam/icon", "href": "/beheer/tools"},
-        {"name": "Config",       "icon": "🧾", "desc": "settings.json beheren",           "href": "/beheer/config"},
-        {"name": "Theme",        "icon": "🎨", "desc": "theme.json beheren",              "href": "/beheer/theme"},
-        {"name": "Logs",         "icon": "📜", "desc": "logs viewer",                     "href": "/beheer/logs"},
-        {"name": "Hub Editor",   "icon": "🧭", "desc": "hub editor",                      "href": "/beheer/hub"},
+        {"name": "Tools Editor", "icon": "⚙️", "desc": "Tools beheren", "href": "/beheer/tools"},
+        {"name": "Config",       "icon": "🧾", "desc": "settings.json beheren", "href": "/beheer/config"},
+        {"name": "Theme",        "icon": "🎨", "desc": "theme.json beheren", "href": "/beheer/theme"},
+        {"name": "Logs",         "icon": "📜", "desc": "logs viewer", "href": "/beheer/logs"},
+        {"name": "Hub Editor",   "icon": "🧭", "desc": "hub settings", "href": "/beheer/hub"},
     ]
 
 
@@ -107,10 +115,11 @@ def render_page(*, title: str, content_html: str) -> str:
     path = request.path or ""
     hub = load_hub_settings()
 
-    brand_tools = hub.get("brand_tools", "CyNiT Tools")
-    brand_beheer = hub.get("brand_beheer", "CyNiT Beheer")
+    if path.startswith("/beheer"):
+        brand = hub.get("brand_beheer", "CyNiT Beheer")
+    else:
+        brand = hub.get("brand_tools", "CyNiT Tools")
 
-    brand = brand_beheer if path.startswith("/beheer") else brand_tools
     page_title = f"{brand} | {title}" if title else brand
 
     css_href = url_for("static", filename="main.css")
@@ -122,10 +131,9 @@ def render_page(*, title: str, content_html: str) -> str:
     tools = _tool_items(load_tools())
     beheer = _beheer_items()
 
-    # body classes voor styling toggles
     body_classes = ["page"]
-    body_classes.append("btnbg-on" if bool(hub.get("button_bg", True)) else "btnbg-off")
-    body_classes.append("btnround-on" if bool(hub.get("button_rounded", True)) else "btnround-off")
+    body_classes.append("btnbg-on" if hub.get("button_bg", True) else "btnbg-off")
+    body_classes.append("btnround-on" if hub.get("button_rounded", True) else "btnround-off")
 
     def dd_item(it: dict) -> str:
         return f"""

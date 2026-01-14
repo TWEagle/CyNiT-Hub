@@ -4,6 +4,7 @@ from flask import Flask
 from beheer.main_layout import render_page
 
 from beheer.editors.tools_editor import handle_tools_editor
+from beheer.editors.hub_editor import handle_hub_editor
 
 
 def register_beheer_routes(app: Flask) -> None:
@@ -32,10 +33,8 @@ def register_beheer_routes(app: Flask) -> None:
             content_html="<div class='panel'><h2>Logs</h2><p>TODO</p></div>",
         )
 
-    @app.get("/beheer/hub")
+    @app.route("/beheer/hub", methods=["GET", "POST"])
     def beheer_hub():
-        return render_page(
-            title="Hub Editor",
-            content_html="<div class='panel'><h2>Hub Editor</h2><p>TODO</p></div>",
-        )
+        return handle_hub_editor()
+
 
