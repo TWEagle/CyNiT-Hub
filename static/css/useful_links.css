@@ -1,0 +1,87 @@
+
+/* /static/useful_links.css */
+
+/* ---------- Categorieën ---------- */
+
+.catbar { display:flex; flex-wrap:wrap; gap:10px; }
+
+.catblock {
+  display:flex; flex-direction:column;
+  width:160px; min-height:58px; padding:10px 12px;
+  background:#0b0b0b; border:1px solid var(--catcolor, #2a2a2a);
+  text-decoration:none; color:#e8f2f2; border-radius:10px;
+  transition:border-color .15s ease, background .15s ease, box-shadow .15s ease, transform .08s ease;
+  outline: none;
+}
+.catblock:hover { background:#101010; border-color:var(--catcolor, #35e6df); }
+.catblock:focus-visible { box-shadow:0 0 0 3px color-mix(in srgb, var(--catcolor,#35e6df) 30%, transparent); transform: translateY(-1px); }
+.catblock.active { background:linear-gradient(180deg, rgba(53,230,223,.08), rgba(0,0,0,0)) padding-box; border-color:var(--catcolor,#35e6df); box-shadow:0 0 0 1px var(--catcolor,#35e6df); }
+.catname { font-weight:800; }
+.catcount { opacity:.85; font-size:.9em; }
+
+@media (max-width:560px){ .catblock{ width:100%; } }
+
+/* ---------- Cards ---------- */
+
+.cardlink {
+  border:1px solid #2a2a2a; background:#0b0b0b;
+  display:flex; flex-direction:column; border-radius:10px;
+  transition:border-color .15s ease, box-shadow .15s ease, transform .08s ease;
+}
+.cardlink:hover { border-color:var(--catcolor, #35e6df); box-shadow:0 6px 18px rgba(0,0,0,.24); transform:translateY(-1px); }
+.cardlink.is-dragging { opacity:.8; transform:scale(.995); }
+
+.cardhead { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #222; padding-bottom:8px; margin-bottom:8px; }
+.linkname { font-weight:800; color:var(--catcolor, #35e6df); }
+
+.actions { display:flex; gap:6px; align-items:center; }
+.iconbtn {
+  border:1px solid #333; background:#111; padding:4px 8px;
+  cursor:pointer; color:#e8f2f2; border-radius:8px;
+  transition: background .12s ease, border-color .12s ease, transform .06s ease;
+}
+.iconbtn:hover { background:#151515; border-color: var(--catcolor, #35e6df); }
+.iconbtn:active { transform: translateY(1px); }
+
+.drag-handle { cursor:grab; user-select:none; padding:0 6px; }
+
+.cardlink.inline-mode [data-inline-edit="1"]{ display:none !important; }
+.cardlink.inline-mode [data-inline-save="1"],
+.cardlink.inline-mode [data-inline-cancel="1"]{ display:inline-block !important; }
+.cardlink [contenteditable="true"]{ outline:1px dashed rgba(255,255,255,.25); border-radius:6px; padding:2px 4px; }
+.inline-edit-url{ word-break:break-all; }
+
+/* ---------- Lijstweergave ---------- */
+
+.listwrap{ overflow:auto; }
+.links-list{ width:100%; border-collapse:separate; border-spacing:0 8px; }
+.links-list thead th{ text-align:left; font-weight:800; padding:6px 8px; border-bottom:1px solid #222; color:#e8f2f2; }
+.links-list tbody tr{ background:#0b0b0b; border:1px solid #2a2a2a; border-radius:10px; }
+.links-list tbody tr td{ padding:10px 12px; color:#e8f2f2; vertical-align:top; }
+.links-list tbody tr:hover{ border-color:var(--catcolor, #35e6df); }
+.links-list .drag-cell{ width:32px; text-align:center; }
+.links-list .drag-handle{ cursor:grab; user-select:none; display:inline-block; }
+.links-list tr.is-dragging{ opacity:.85; }
+
+.links-list [contenteditable="true"]{ outline:1px dashed rgba(255,255,255,.25); border-radius:6px; padding:2px 4px; }
+.links-list .inline-edit-url{ margin-top:4px; }
+
+/* ---------- Links ---------- */
+
+a.url{ color:#e8f2f2; word-break:break-all; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,.15); }
+a.url:hover{ color: var(--catcolor, #35e6df); border-bottom-color: var(--catcolor, #35e6df); }
+
+.meta { opacity: .92; margin-top: 6px; line-height: 1.35; }
+.badge { border:1px solid #2a2a2a; padding:2px 6px; border-radius:6px; font-size:.8em; background:#0d0d0d; color:#dfe9e9; }
+.hint  { opacity:.85; font-size:.9em; }
+
+/* ---------- Breakpoints editor ---------- */
+.bp-table{ width:100%; border-collapse:collapse; }
+.bp-table th, .bp-table td{ padding:6px 8px; border-bottom:1px solid #222; }
+.bp-table input.in{ background:#0b0b0b; border:1px solid #333; color:#e8f2f2; border-radius:6px; }
+
+/* ---------- High-contrast nuance ---------- */
+@media (prefers-contrast: more){
+  .catblock.active{ box-shadow:0 0 0 2px var(--catcolor,#35e6df); }
+  .iconbtn:hover{ border-color:var(--catcolor,#35e6df); }
+}

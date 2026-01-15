@@ -4,7 +4,7 @@ import json
 import logging
 import importlib
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from flask import Flask, send_from_directory
 
@@ -27,10 +27,18 @@ IMAGES_DIR = BASE_DIR / "images"
 # =========================
 # Config loaders
 # =========================
-def load_tools_config() -> list[dict]:
+def load_tools_config() -> List[dict]:
     if not TOOLS_JSON.exists():
         return []
-    data = json.loads(TOOLS_JSON.read_text(encoding="utf-8"))
+
+    raw = TOOLS_JSON.read_text(encoding="utf-8").strip()
+    if not raw:
+        return []
+
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return []
 
     # allow {"tools":[...]}
     if isinstance(data, dict) and "tools" in data:
@@ -38,14 +46,15 @@ def load_tools_config() -> list[dict]:
 
     if not isinstance(data, list):
         return []
+
     return [t for t in data if isinstance(t, dict)]
 
 
 def load_hub_settings() -> Dict[str, Any]:
     """
     Supports:
-      - dict (preferred, future proof)
-      - legacy: [ { ... } ]  (your old format)
+      - dict (preferred)
+      - legacy: [ { ... } ]
     """
     defaults: Dict[str, Any] = {
         "flask_app_name": "CyNiT-Hub",
@@ -59,7 +68,7 @@ def load_hub_settings() -> Dict[str, Any]:
         "button_bg": True,
         "button_rounded": True,
 
-        # optional: section ordering (from new hub_editor)
+        # optional: section ordering (from hub_editor)
         "show_section_order": False,
         "sections_order": ["app", "branding", "layout"],
     }
@@ -129,13 +138,11 @@ def _hex_to_rgb(accent: str) -> str:
 def create_app() -> Flask:
     hub = load_hub_settings()
 
-    # ---- IMPORTANT FIX ----
     # This affects: "Serving Flask app '...'"
-    # It will no longer show "master".
     app_name = str(hub.get("flask_app_name") or "CyNiT-Hub").strip() or "CyNiT-Hub"
     app = Flask(app_name, static_folder="static", static_url_path="/static")
 
-    # your own forced config (used in layout)
+    # forced config (optional use in layout)
     app.config["FLASK_APP_NAME"] = app_name
 
     # ===== Images =====
@@ -154,13 +161,14 @@ def create_app() -> Flask:
     # ===== Home =====
     @app.get("/")
     def home():
+        # IMPORTANT: jouw main_layout.py moet load_tools() hebben
         from beheer.main_layout import render_page, load_tools
 
         hub2 = load_hub_settings()
         cols = int(hub2.get("home_columns", 2) or 2)
         cols = max(1, min(12, cols))
 
-        tools_cards = []
+        tools_cards: List[str] = []
         for t in load_tools():
             if not t.get("enabled", True):
                 continue

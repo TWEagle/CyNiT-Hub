@@ -1,0 +1,12 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page{size:A4;margin:8mm}
+  .poster{height:100%;border:2px solid #0f6fec;border-radius:12px;padding:16px}
+  .center{display:flex;align-items:center;justify-content:center;height:100%}
+</style>
+{% endblock %}
+{% block content %}
+<div class="poster"><div class="center">{{ body|safe }}</div></div>
+{% endblock %}

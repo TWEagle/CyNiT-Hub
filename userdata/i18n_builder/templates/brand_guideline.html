@@ -1,0 +1,11 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .swatch{display:inline-block;width:80px;height:40px;border-radius:6px;margin:4px;border:1px solid rgba(0,0,0,.1)}
+</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or "Brand Guidelines" }}</h1>
+<div>{{ body|safe }}</div>
+{% endblock %}

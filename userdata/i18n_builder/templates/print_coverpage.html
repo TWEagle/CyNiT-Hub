@@ -1,0 +1,18 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page{size:A4;margin:0}
+  .cover{height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#0f172a;color:#e5e7eb}
+  .cover h1{font-size:36px;margin:0}
+  .cover p{opacity:.85}
+  .page{page-break-before:always;padding:18mm}
+</style>
+{% endblock %}
+{% block content %}
+<section class="cover">
+  <h1>{{ meta.title or title or "Titel" }}</h1>
+  <p>{{ meta.description or "—" }}</p>
+</section>
+<section class="page">{{ body|safe }}</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+  body.dark { background: #0e0f12; color: #e9eef3; }
+  .container { max-width: 980px; margin: 0 auto; }
+  a { color: #82b1ff; }
+  h1, h2, h3 { color: #cbe1ff; }
+  .card {
+    background: #151820; border: 1px solid #2a2f3a; border-radius: 8px;
+    padding: 16px; margin: 10px 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  {{ body|safe }}
+</div>
+{% endblock %}

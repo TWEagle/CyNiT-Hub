@@ -1,0 +1,9 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>.section{margin:10px 0;padding:10px;border:1px solid #eee;border-radius:8px}</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or "Aanvraag" }}</h1>
+<div class="section">{{ body|safe }}</div>
+{% endblock %}

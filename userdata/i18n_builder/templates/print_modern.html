@@ -1,0 +1,22 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+  h1,h2,h3{font-weight:800;margin:0 0 8px}
+  h1{font-size:24px;color:#0f6fec}
+  h2{font-size:18px;color:#2aa198}
+  h3{font-size:16px;color:#b58900}
+  .muted{color:#777}
+  .lead{font-size:15px;color:#333;margin-bottom:10px}
+  body.dark .lead{color:#ddd}
+  .hr{height:1px;background:#ddd;margin:12px 0}
+  body.dark .hr{background:#333}
+</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or title or "Document" }}</h1>
+<p class="muted">{{ meta.description or '' }}</p>
+<div class="hr"></div>
+<div class="lead">{{ body|safe }}</div>
+{% endblock %}

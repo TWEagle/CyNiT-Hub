@@ -1,0 +1,11 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .hero{background:#0f6fec;color:#fff;border-radius:8px;padding:16px;margin-bottom:12px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="hero"><h1>{{ meta.title or title }}</h1><p>{{ meta.description or "" }}</p></div>
+{{ body|safe }}
+{% endblock %}

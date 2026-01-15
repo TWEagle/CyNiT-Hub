@@ -1,0 +1,12 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page{size:A4;margin:10mm}
+  .container{max-width:none}
+  body{font-size:12px;line-height:1.4}
+</style>
+{% endblock %}
+{% block content %}
+{{ body|safe }}
+{% endblock %}

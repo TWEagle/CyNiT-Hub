@@ -1,0 +1,13 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .exec{border-left:4px solid #0f6fec;padding-left:10px;margin:10px 0 16px}
+  .toc{font-size:14px;margin:8px 0 16px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="exec"><h1>{{ meta.title or title }}</h1><p>{{ meta.summary or meta.description or "" }}</p></div>
+<div class="toc">{{ meta.toc or "" }}</div>
+{{ body|safe }}
+{% endblock %}

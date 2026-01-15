@@ -1,0 +1,22 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page{ size:A4; margin:16mm 15mm 18mm 15mm; }
+  header.corp, footer.corp{position:fixed;left:0;right:0;color:#666;font-size:11px}
+  header.corp{top:0;border-bottom:1px solid #ccc;padding:6px 15mm}
+  footer.corp{bottom:0;border-top:1px solid #ccc;padding:6px 15mm}
+  main{margin:54px 0 48px}
+  .logo{font-weight:800;letter-spacing:.3px}
+  .meta{font-size:12px;color:#888}
+</style>
+{% endblock %}
+{% block content %}
+<header class="corp"><span class="logo">{{ meta.brand or "Vlaamse overheid" }}</span></header>
+<main>
+  <h1>{{ meta.title or title or "Rapport" }}</h1>
+  <p class="meta">{{ meta.description or "" }}</p>
+  {{ body|safe }}
+</main>
+<footer class="corp"><span>{{ meta.footer or "—" }}</span></footer>
+{% endblock %}

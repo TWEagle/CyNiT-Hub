@@ -1,0 +1,9 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>ul{list-style:square;margin-left:20px}</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or "Checklist" }}</h1>
+{{ body|safe }}
+{% endblock %}

@@ -1,0 +1,52 @@
+
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+  @page { 
+    size: A4; 
+    margin: 18mm 16mm 20mm 16mm; 
+  }
+
+  .toc-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+
+  .toc-list {
+    margin: 0 0 16px 0;
+    padding-left: 18px;
+  }
+
+  .toc-list li {
+    margin: 4px 0;
+    font-size: 14px;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  /* Body wrapper */
+  .content {
+    margin-top: 10px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1 class="toc-title">Inhoudstafel</h1>
+
+<ul class="toc-list">
+  {% for item in meta.toc or [] %}
+    <li>{{ item }}</li>
+  {% endfor %}
+</ul>
+
+<div class="page-break"></div>
+
+<div class="content">
+  {{ body|safe }}
+</div>
+{% endblock %}

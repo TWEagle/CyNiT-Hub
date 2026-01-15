@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "links": [
     {
       "id": "644b3526-7423-4948-b911-b9eefb66df89",
@@ -7,8 +7,19 @@
       "url": "https://gebruikersbeheer.vlaanderen.be",
       "category": "Veiligheidsbouwstenen",
       "info": "",
+      "order": 1,
       "created": "2025-12-16T15:18:48",
       "updated": "2025-12-16T15:18:48"
+    },
+    {
+      "id": "3413317c-0a91-469b-9198-1e32924ff647",
+      "name": "Documentatie ACM",
+      "url": "https://authenticatie.vlaanderen.be/docs/",
+      "category": "Veiligheidsbouwstenen",
+      "info": "",
+      "order": 2,
+      "created": "2026-01-15T08:52:14",
+      "updated": "2026-01-15T08:52:14"
     }
   ],
   "categories": {
@@ -20,9 +31,9 @@
     }
   },
   "prefs": {
-    "hide_general": true,
     "default_category": "Algemeen",
     "hide_default_category": true,
-    "view_mode": "compact"
+    "view_mode": "compact",
+    "links_layout": "list"
   }
 }

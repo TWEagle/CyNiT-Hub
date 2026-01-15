@@ -1,0 +1,9 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>.ver{font-weight:800}.date{color:#8696a7;font-size:12px}</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or "Changelog" }}</h1>
+{{ body|safe }}
+{% endblock %}

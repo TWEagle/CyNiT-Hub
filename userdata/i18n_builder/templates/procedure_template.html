@@ -1,0 +1,12 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .step{display:flex;gap:10px;margin:8px 0}
+  .num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#0f6fec;color:#fff;font-weight:800}
+</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or "Procedure" }}</h1>
+{{ body|safe }}
+{% endblock %}

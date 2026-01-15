@@ -1,0 +1,13 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page{size:A4;margin:15mm}
+  .strip{background:linear-gradient(180deg,#f7f7f7,#fff);padding:10px 14px;border:1px solid #e5e5e5;border-radius:6px;margin:10px 0}
+  body.dark .strip{background:#1c1c1c;border-color:#333}
+</style>
+{% endblock %}
+{% block content %}
+<div class="strip"><h1>{{ meta.title or title }}</h1><p>{{ meta.description or "" }}</p></div>
+<div class="strip">{{ body|safe }}</div>
+{% endblock %}

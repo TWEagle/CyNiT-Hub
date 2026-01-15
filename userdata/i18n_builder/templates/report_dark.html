@@ -1,0 +1,11 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  body.dark .card{background:#151820;border:1px solid #2a2f3a;border-radius:8px;padding:14px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="card"><h1>{{ meta.title or title }}</h1><p>{{ meta.description or "" }}</p></div>
+<div class="card">{{ body|safe }}</div>
+{% endblock %}

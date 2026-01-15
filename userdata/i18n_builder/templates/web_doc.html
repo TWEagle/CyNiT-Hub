@@ -1,0 +1,13 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .sidebar{float:left;width:240px;margin-right:16px}
+  .content{overflow:hidden}
+  @media (max-width:1000px){.sidebar{float:none;width:auto;margin:0 0 12px}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="sidebar">{{ meta.toc or "" }}</div>
+<div class="content">{{ body|safe }}</div>
+{% endblock %}

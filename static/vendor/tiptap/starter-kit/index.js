@@ -1,0 +1,20 @@
+/* esm.sh - @tiptap/starter-kit@3.15.3 */
+import "/@tiptap/core@^3.15.3?target=es2022";
+import "/@tiptap/extension-blockquote@^3.15.3?target=es2022";
+import "/@tiptap/extension-bold@^3.15.3?target=es2022";
+import "/@tiptap/extension-code-block@^3.15.3?target=es2022";
+import "/@tiptap/extension-code@^3.15.3?target=es2022";
+import "/@tiptap/extension-document@^3.15.3?target=es2022";
+import "/@tiptap/extension-hard-break@^3.15.3?target=es2022";
+import "/@tiptap/extension-heading@^3.15.3?target=es2022";
+import "/@tiptap/extension-horizontal-rule@^3.15.3?target=es2022";
+import "/@tiptap/extension-italic@^3.15.3?target=es2022";
+import "/@tiptap/extension-link@^3.15.3?target=es2022";
+import "/@tiptap/extension-list@^3.15.3?target=es2022";
+import "/@tiptap/extension-paragraph@^3.15.3?target=es2022";
+import "/@tiptap/extension-strike@^3.15.3?target=es2022";
+import "/@tiptap/extension-text@^3.15.3?target=es2022";
+import "/@tiptap/extension-underline@^3.15.3?target=es2022";
+import "/@tiptap/extensions@^3.15.3?target=es2022";
+export * from "/@tiptap/starter-kit@3.15.3/es2022/starter-kit.mjs";
+export { default } from "/@tiptap/starter-kit@3.15.3/es2022/starter-kit.mjs";

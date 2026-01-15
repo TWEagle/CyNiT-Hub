@@ -1,0 +1,78 @@
+
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+  /* WKHTMLTOPDF-friendly page settings */
+  @page {
+    size: A4;
+    margin: 15mm 15mm 18mm 15mm;
+  }
+
+  /* PDF header/footer containers (optional – hidden by default) */
+  header.print-header,
+  footer.print-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    color: #666;
+    font-size: 11px;
+  }
+  header.print-header {
+    top: 0;
+    border-bottom: 1px solid #ccc;
+    padding: 6px 15mm;
+  }
+  footer.print-footer {
+    bottom: 0;
+    border-top: 1px solid #ccc;
+    padding: 6px 15mm;
+  }
+
+  /* Main content area */
+  main.print-body {
+    margin-top: 40px;
+    margin-bottom: 40px;
+  }
+
+  /* Page-breaking helpers */
+  .page-break {
+    page-break-before: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  /* Optional improved typography */
+  main.print-body h1,
+  main.print-body h2,
+  main.print-body h3 {
+    margin-top: 0;
+    color: #222;
+  }
+
+  body.dark main.print-body h1,
+  body.dark main.print-body h2,
+  body.dark main.print-body h3 {
+    color: #e9eef3;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="print-header">
+  <strong>{{ meta.title or title or "Document" }}</strong>
+  {% if meta.description %}
+    <div style="font-size:11px; margin-top:2px;">{{ meta.description }}</div>
+  {% endif %}
+</header>
+
+<main class="print-body">
+  {{ body|safe }}
+</main>
+
+<footer class="print-footer">
+  {{ meta.footer or "—" }}
+</footer>
+{% endblock %}

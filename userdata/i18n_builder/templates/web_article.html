@@ -1,0 +1,10 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>.byline{color:#8696a7;margin-bottom:10px}</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or title }}</h1>
+<div class="byline">{{ meta.author or "" }} · {{ meta.date or "" }}</div>
+{{ body|safe }}
+{% endblock %}

@@ -1,0 +1,6 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ meta.title or "README" }}</h1>
+{{ body|safe }}
+{% endblock %}

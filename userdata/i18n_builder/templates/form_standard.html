@@ -1,0 +1,13 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  form{display:grid;gap:10px;max-width:680px}
+  label{font-weight:600}
+  input,select,textarea{padding:10px;border:1px solid #ccc;border-radius:8px}
+</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or "Formulier" }}</h1>
+{{ body|safe }}
+{% endblock %}

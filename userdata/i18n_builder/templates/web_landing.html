@@ -1,0 +1,13 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .hero{padding:30px;border-radius:16px;background:linear-gradient(135deg,#0f6fec,#22d3ee);color:#fff;margin-bottom:16px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:12px;color:#fff}
+</style>
+{% endblock %}
+{% block content %}
+<div class="hero"><h1>{{ meta.title or title }}</h1><p>{{ meta.description or "" }}</p></div>
+<div class="cards">{{ body|safe }}</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px}
+  .brand{font-weight:800;letter-spacing:.3px}
+  .muted{color:#8696a7}
+</style>
+{% endblock %}
+{% block content %}
+<div class="head"><div class="brand">{{ meta.brand or "Vlaamse overheid" }}</div><div class="muted">{{ meta.date or "" }}</div></div>
+<h1>{{ meta.title or title }}</h1>
+<p class="<p class="muted">{{ meta.description or "" }}</p>
+{{ body|safe }}

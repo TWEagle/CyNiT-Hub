@@ -1,0 +1,15 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page{size:A4;margin:20mm}
+  h1{font-size:20px;text-transform:uppercase;letter-spacing:.04em}
+  .clause{margin:10px 0}
+  .clause h3{font-size:14px;margin:0 0 4px}
+  .clause p{margin:0 0 6px;text-align:justify}
+</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or "OVEREENKOMST" }}</h1>
+<div class="clause">{{ body|safe }}</div>
+{% endblock %}

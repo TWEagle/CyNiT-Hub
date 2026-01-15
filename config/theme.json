@@ -1,0 +1,35 @@
+{
+  "active": "Dark",
+  "themes": {
+    "Dark": {
+      "icon": "🌙",
+      "vars": {
+        "--bg": "#000",
+        "--text": "#eeffee",
+        "--muted": "#9fb3b3",
+        "--border": "rgba(255,255,255,.10)",
+        "--shadow": "0 12px 40px rgba(0,0,0,.55)",
+        "--accent": "#35e6df"
+      }
+    },
+    "Light": {
+      "icon": "☀️",
+      "vars": {
+        "--bg": "#f7fbfb",
+        "--text": "#0b1212",
+        "--muted": "#335050",
+        "--border": "rgba(0,0,0,.12)",
+        "--shadow": "0 12px 40px rgba(0,0,0,.10)",
+        "--accent": "#0aa3ff"
+      }
+    }
+  },
+  "editor_vars": [
+    "--bg",
+    "--text",
+    "--muted",
+    "--border",
+    "--shadow",
+    "--accent"
+  ]
+}

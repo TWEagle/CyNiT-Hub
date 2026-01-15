@@ -1,0 +1,12 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<h1>{{ meta.title or title }}</h1>
+<div class="grid">{{ body|safe }}</div>
+{% endblock %}

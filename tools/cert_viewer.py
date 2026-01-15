@@ -586,4 +586,4 @@ def register_web_routes(app: Flask):
 if __name__ == "__main__":
     app = Flask(__name__)
     register_web_routes(app)
-    app.run("127.0.0.1", 5450, debug=True)
+    app.run("127.0.0.1", 5001, debug=True)

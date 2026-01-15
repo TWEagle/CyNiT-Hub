@@ -1,0 +1,14 @@
+
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+  .container { max-width: none; margin: 0; padding: 0; }
+  body { padding: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+{{ body|safe }}
+{% endblock %}
+``

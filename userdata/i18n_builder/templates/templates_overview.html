@@ -1,0 +1,100 @@
+
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+  .section {
+    margin: 24px 0;
+    padding: 16px;
+    border-left: 4px solid #0f6fec;
+    background: rgba(0,0,0,0.04);
+    border-radius: 8px;
+  }
+  body.dark .section { background: rgba(255,255,255,0.06); }
+  h2 { margin-top: 0; }
+  .tpl-list { list-style: square; margin-left: 20px; }
+  .code {
+    background: #111; color: #eee; padding: 6px 10px;
+    border-radius: 6px; font-family: monospace; display: inline-block;
+  }
+  body.dark .code { background:#222; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h1>Templates – Compact overzicht</h1>
+<p class="muted">Alle beschikbare templates in één pagina, gegroepeerd per categorie.</p>
+
+<!-- PRINT / PDF -->
+<div class="section">
+  <h2>Print &amp; PDF</h2>
+  <ul class="tpl-list">
+    <li><span class="code">print_minimal.html</span> — Clean A4, zonder header/footer.</li>
+    <li><span class="code">print_bordered.html</span> — Gecentreerd met subtiele kader.</li>
+    <li><span class="code">print_modern.html</span> — Moderne stijl, grote headings.</li>
+    <li><span class="code">print_corporate.html</span> — Header/footer, corporate layout.</li>
+    <li><span class="code">print_striped.html</span> — Stroken / afgebakende secties.</li>
+    <li><span class="code">print_coverpage.html</span> — Aparte titelpagina + inhoud.</li>
+    <li><span class="code">print_contract.html</span> — Juridische/contract-stijl.</li>
+    <li><span class="code">print_compact.html</span> — Extreem compacte marges.</li>
+    <li><span class="code">print_table_of_contents.html</span> — Automatische inhoudstafel.</li>
+  </ul>
+</div>
+
+<!-- RAPPORT / DOCUMENT -->
+<div class="section">
+  <h2>Rapport / Document</h2>
+  <ul class="tpl-list">
+    <li><span class="code">report_modern.html</span> — Modern rapport.</li>
+    <li><span class="code">report_executive.html</span> — Executive summary + TOC.</li>
+    <li><span class="code">report_dark.html</span> — Donkere kaartenstijl.</li>
+    <li><span class="code">report_two_column.html</span> — Twee kolommen.</li>
+    <li><span class="code">report_newsletter.html</span> — Magazine/nieuwsbrief.</li>
+  </ul>
+</div>
+
+<!-- WEB / HTML -->
+<div class="section">
+  <h2>Web / HTML Publicatie</h2>
+  <ul class="tpl-list">
+    <li><span class="code">web_article.html</span> — Blogartikel.</li>
+    <li><span class="code">web_doc.html</span> — Documentatie/Sidebar.</li>
+    <li><span class="code">web_landing.html</span> — Landing page + cards.</li>
+    <li><span class="code">web_presentation.html</span> — Slide-achtige layout.</li>
+  </ul>
+</div>
+
+<!-- BRANDING / VISUEEL -->
+<div class="section">
+  <h2>Branding / Visueel</h2>
+  <ul class="tpl-list">
+    <li><span class="code">brand_guideline.html</span> — Brand manual.</li>
+    <li><span class="code">poster_a4.html</span> — Poster layout.</li>
+    <li><span class="code">card_list.html</span> — Kaarten-galerij.</li>
+  </ul>
+</div>
+
+<!-- FORMS -->
+<div class="section">
+  <h2>Forms</h2>
+  <ul class="tpl-list">
+    <li><span class="code">form_standard.html</span> — Standaard formulier.</li>
+    <li><span class="code">form_compact.html</span> — Compact formulier.</li>
+    <li><span class="code">application_template.html</span> — Aanvraagformulier.</li>
+    <li><span class="code">checklist_template.html</span> — Checklist.</li>
+    <li><span class="code">procedure_template.html</span> — Procedure.</li>
+  </ul>
+</div>
+
+<!-- SPECIAL -->
+<div class="section">
+  <h2>Special</h2>
+  <ul class="tpl-list">
+    <li><span class="code">readme.html</span> — README/MD weergave.</li>
+    <li><span class="code">changelog.html</span> — Release notes.</li>
+    <li><span class="code">legal_page.html</span> — Legal/privacy.</li>
+  </ul>
+</div>
+
+{% endblock %}

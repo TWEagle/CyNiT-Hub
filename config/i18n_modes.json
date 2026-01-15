@@ -1,0 +1,74 @@
+
+{
+  "default_mode": "markdown",
+
+  "modes": {
+    "markdown": {
+      "label": "Markdown",
+      "wysiwyg": "tiptap",
+      "syntax": "markdown",
+      "extensions": [
+        "link",
+        "image",
+        "placeholder",
+        "bold",
+        "italic",
+        "heading",
+        "list",
+        "code"
+      ]
+    },
+
+    "html": {
+      "label": "HTML",
+      "wysiwyg": "tinymce",
+      "syntax": "html",
+      "autopreview": true
+    },
+
+    "css": {
+      "label": "CSS",
+      "wysiwyg": "codemirror",
+      "syntax": "css",
+      "live_css_update": true,
+      "tools": {
+        "color_picker": true,
+        "format_buttons": true
+      }
+    },
+
+    "json": {
+      "label": "JSON",
+      "wysiwyg": "codemirror",
+      "syntax": "json",
+      "validator": true,
+      "autoformat": true
+    },
+
+    "xml": {
+      "label": "XML",
+      "wysiwyg": "codemirror",
+      "syntax": "xml",
+      "autoformat": true
+    },
+
+    "raw": {
+      "label": "Raw",
+      "wysiwyg": "codemirror",
+      "syntax": "plaintext"
+    }
+  },
+
+  "switcher": {
+    "style": "tabs",
+    "show_icons": true,
+    "icons": {
+      "markdown": "mdi-language-markdown",
+      "html": "mdi-language-html5",
+      "css": "mdi-language-css3",
+      "json": "mdi-code-json",
+      "xml": "mdi-xml",
+      "raw": "mdi-file"
+    }
+  }
+}

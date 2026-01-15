@@ -1,0 +1,108 @@
+
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+
+  /* Layout */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+    margin-top: 18px;
+  }
+
+  .thumb-card {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 12px;
+    padding: 12px;
+    transition: .2s;
+  }
+  body.dark .thumb-card {
+    background: rgba(10,15,18,.65);
+    border-color: rgba(255,255,255,.12);
+  }
+  .thumb-card:hover {
+    transform: translateY(-3px);
+    border-color: #0f6fec;
+  }
+
+  .thumb-img {
+    width: 100%;
+    height: 160px;
+    background: #1e1e1e;
+    border-radius: 8px;
+    object-fit: cover;
+    margin-bottom: 10px;
+  }
+  body.light .thumb-img { background: #f0f0f0; }
+
+  .thumb-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .thumb-desc {
+    font-size: 12px;
+    opacity: 0.7;
+  }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Template Overzicht – Live Preview</h1>
+<p class="muted">Klik op een kaart om de live preview van die template te openen.</p>
+
+<div class="grid">
+
+  {% for tpl in [
+    {"file":"print_minimal.html","thumb":"/images/thumbs/print_minimal.png","desc":"Clean A4"},
+    {"file":"print_bordered.html","thumb":"/images/thumbs/print_bordered.png","desc":"Met border"},
+    {"file":"print_modern.html","thumb":"/images/thumbs/print_modern.png","desc":"Moderne look"},
+    {"file":"print_corporate.html","thumb":"/images/thumbs/print_corporate.png","desc":"Corporate rapport"},
+    {"file":"print_striped.html","thumb":"/images/thumbs/print_striped.png","desc":"Strook-indeling"},
+    {"file":"print_coverpage.html","thumb":"/images/thumbs/print_coverpage.png","desc":"Titelpagina"},
+    {"file":"print_contract.html","thumb":"/images/thumbs/print_contract.png","desc":"Contractstijl"},
+    {"file":"print_compact.html","thumb":"/images/thumbs/print_compact.png","desc":"Compact A4"},
+    {"file":"print_table_of_contents.html","thumb":"/images/thumbs/print_toc.png","desc":"Inhoudstafel"},
+
+    {"file":"report_modern.html","thumb":"/images/thumbs/report_modern.png","desc":"Modern rapport"},
+    {"file":"report_executive.html","thumb":"/images/thumbs/report_exec.png","desc":"Executive"},
+    {"file":"report_dark.html","thumb":"/images/thumbs/report_dark.png","desc":"Donker rapport"},
+    {"file":"report_two_column.html","thumb":"/images/thumbs/report_two_col.png","desc":"2 kolommen"},
+    {"file":"report_newsletter.html","thumb":"/images/thumbs/report_news.png","desc":"Nieuwsbrief"},
+
+    {"file":"web_article.html","thumb":"/images/thumbs/web_article.png","desc":"Artikel"},
+    {"file":"web_doc.html","thumb":"/images/thumbs/web_doc.png","desc":"Documentatie"},
+    {"file":"web_landing.html","thumb":"/images/thumbs/web_landing.png","desc":"Landing page"},
+    {"file":"web_presentation.html","thumb":"/images/thumbs/web_presentation.png","desc":"Slide layout"},
+
+    {"file":"brand_guideline.html","thumb":"/images/thumbs/brand_guideline.png","desc":"Branding"},
+    {"file":"poster_a4.html","thumb":"/images/thumbs/poster_a4.png","desc":"Poster"},
+    {"file":"card_list.html","thumb":"/images/thumbs/card_list.png","desc":"Cards grid"},
+
+    {"file":"form_standard.html","thumb":"/images/thumbs/form_standard.png","desc":"Formulier"},
+    {"file":"form_compact.html","thumb":"/images/thumbs/form_compact.png","desc":"Compact form"},
+    {"file":"application_template.html","thumb":"/images/thumbs/application_template.png","desc":"Aanvraag"},
+    {"file":"checklist_template.html","thumb":"/images/thumbs/checklist.png","desc":"Checklist"},
+    {"file":"procedure_template.html","thumb":"/images/thumbs/procedure.png","desc":"Procedure"},
+
+    {"file":"readme.html","thumb":"/images/thumbs/readme.png","desc":"README"},
+    {"file":"changelog.html","thumb":"/images/thumbs/changelog.png","desc":"Changelog"},
+    {"file":"legal_page.html","thumb":"/images/thumbs/legal.png","desc":"Legal pagina"}
+  ] %}
+
+    <a href="/i18n/preview_template?name={{ tpl.file }}" class="thumb-card">
+      <img src="{{ tpl.thumb }}" class="thumb-img" onerror="this.style.background='#333';this.src=''" />
+      <div class="thumb-title">{{ tpl.file }}</div>
+      <div class="thumb-desc">{{ tpl.desc }}</div>
+    </a>
+
+  {% endfor %}
+
+</div>
+
+{% endblock %}

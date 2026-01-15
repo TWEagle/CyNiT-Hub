@@ -1,0 +1,11 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .card{background:#0b0f12;border:1px solid #222;border-radius:12px;padding:14px;color:#e5e5e5}
+</style>
+{% endblock %}
+{% block content %}
+<div class="cards">{{ body|safe }}</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+  @page { margin: 18mm 15mm; }
+  header.report-header, footer.report-footer {
+    position: fixed; left: 0; right: 0; color: #666; font-size: 12px;
+  }
+  header.report-header { top: 0; border-bottom: 1px solid #ccc; padding: 6px 15mm; }
+  footer.report-footer { bottom: 0; border-top: 1px solid #ccc; padding: 6px 15mm; }
+  .report-title { margin: 0; font-size: 18px; }
+  .report-meta { margin: 0; font-size: 12px; }
+  .container { max-width: 980px; margin: 0 auto; }
+  main { margin-top: 60px; margin-bottom: 50px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="report-header">
+  <h1 class="report-title">{{ meta.title or title or 'Rapport' }}</h1>
+  <p class="report-meta">{{ meta.description or '' }}</p>
+</header>
+
+<main>
+  {{ body|safe }}
+</main>
+
+<footer class="report-footer">
+  <span>{{ meta.footer or '—' }}</span>
+</footer>
+{% endblock %}

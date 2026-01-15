@@ -1,0 +1,14 @@
+
+{% extends "base.html" %}
+{% block head_extra %}
+<style>
+  @page { size: A4; margin: 18mm; }
+  main.print-body{margin:0;display:flex;justify-content:center}
+  .border-wrapper{max-width:780px;border:1px solid #ccc;border-radius:8px;padding:18px 24px;background:#fff}
+  body.dark .border-wrapper{border-color:#444;background:#1e1e1e}
+  .page-break{page-break-before:always}
+</style>
+{% endblock %}
+{% block content %}
+<main class="print-body"><div class="border-wrapper">{{ body|safe }}</div></main>
+{% endblock %}
