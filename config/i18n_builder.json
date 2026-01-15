@@ -1,78 +1,65 @@
 
 {
   "version": "1.0.0",
+
   "wkhtmltopdf": {
     "portable_path": "static/vendor/wkhtmltox/bin/wkhtmltopdf.exe"
   },
 
   "ui": {
-    "theme": "dark", 
+    "theme": "dark",
     "dark_mode_default": true,
-    "title": "I18N Builder",
-    "description": "Vertalingen, publicatie en PDF generatie"
-  },
 
-  "editors": {
-    "tiptap": {
-      "enabled": true,
-      "path": "static/vendor/tiptap",
-      "config": {
-        "theme": "dark",
-        "spellcheck": false,
-        "extensions": [
-          "bold","italic","underline","strike",
-          "paragraph","blockquote","code","codeBlock",
-          "history","list","bulletList","orderedList",
-          "hardBreak","horizontalRule","heading",
-          "image","link","placeholder","gapcursor","dropcursor","text"
-        ]
+    "editors": {
+      "tiptap": {
+        "enabled": true,
+        "path": "static/vendor/tiptap",
+        "modules": {
+          "core": "core/index.js",
+          "starterkit": "starter-kit/index.js",
+          "link": "ext-link/index.js",
+          "image": "ext-image/index.js",
+          "placeholder": "ext-placeholder/index.js"
+        }
+      },
+
+      "tinymce": {
+        "enabled": true,
+        "path": "static/vendor/tinymce",
+        "config": {
+          "menubar": "file edit view insert format tools table help",
+          "plugins": "advlist autolink lists link image charmap preview anchor searchreplace code fullscreen insertdatetime media table emoticons autosave wordcount visualblocks",
+          "toolbar": "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor removeformat | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | code preview fullscreen",
+          "toolbar_sticky": true,
+          "height": 720,
+
+          "color_map": [
+            "000000", "Black",
+            "ffffff", "White",
+            "ff0000", "Red",
+            "00ff00", "Green",
+            "0000ff", "Blue",
+            "ffff00", "Yellow",
+            "ff00ff", "Magenta",
+            "00ffff", "Cyan",
+            "444444", "Gray",
+            "888888", "Light Gray",
+            "1e1e1e", "Dark",
+            "4285f4", "Bright Blue",
+            "0f6fec", "Brand Blue",
+            "2aa198", "Aqua",
+            "b58900", "Gold"
+          ],
+          "color_cols": 10
+        }
+      },
+
+      "codemirror": {
+        "enabled": true,
+        "path": "static/vendor/codemirror",
+        "modes": ["html", "css", "javascript", "json", "xml", "markdown"],
+        "theme": "dark"
       }
-    },
-
-    "tinymce": {
-      "enabled": true,
-      "path": "static/vendor/tinymce",
-
-      "config": {
-        "menubar": "file edit view insert format tools table help",
-
-        "plugins": "advlist autolink lists link image charmap preview anchor searchreplace code fullscreen insertdatetime media table emoticons autosave wordcount visualblocks",
-
-        "toolbar": "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor removeformat | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | code preview fullscreen",
-
-        "toolbar_sticky": true,
-        "height": 720,
-
-        "color_map": [
-          "000000","Black",
-          "ffffff","White",
-          "ff0000","Red",
-          "00ff00","Green",
-          "0000ff","Blue",
-          "ffff00","Yellow",
-          "ff00ff","Magenta",
-          "00ffff","Cyan",
-          "444444","Gray",
-          "888888","Light Gray",
-          "222222","#222",
-          "1e1e1e","Dark Theme Base",
-          "4285f4","Blue Accent",
-          "0f6fec","Brand Blue",
-          "2aa198","Aqua",
-          "b58900","Golden"
-        ],
-
-        "color_cols": 10,
-
-        "content_style": "body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica Neue,Arial,Noto Sans,sans-serif;line-height:1.55;font-size:15px;padding:14px;} .mce-content-body{padding:14px;}"
-      }
-    },
-
-    "codemirror": {
-      "enabled": true,
-      "path": "static/vendor/codemirror",
-      "modes": ["html", "css", "javascript", "json", "xml", "markdown"],
-      "theme": "dark"
     }
   },
 
@@ -81,7 +68,10 @@
     "backup_keep_versions": 10,
     "sanitize_html": true,
     "dark_mode_default": true,
-    "pdf_autodetect": true
+    "pdf_autodetect": true,
+    "live_preview": true,
+    "live_css_apply": true,
+    "drag_drop_upload": true
   },
 
   "paths": {
