@@ -1,0 +1,11 @@
+flask
+jinja2
+
+cryptography
+pyjwt
+
+openpyxl
+markdown
+
+pyyaml
+pyzipper

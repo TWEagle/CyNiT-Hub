@@ -1,21 +1,46 @@
+# =========================
 # Python
+# =========================
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
+# =========================
 # Virtual environments
+# =========================
 venv/
 .env/
+.venv/
 
+# =========================
+# Runtime generated files
+# =========================
+runtime/.deps_stamp
+runtime/tls/
+runtime/*.log
+
+# =========================
 # Logs
+# =========================
 logs/
 *.log
 
-# OS / editor
+# =========================
+# OS / Editor
+# =========================
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 
-# Build / temp
+# =========================
+# Build / Packaging
+# =========================
 dist/
 build/
+*.spec
+
+# =========================
+# PyInstaller cache
+# =========================
+__pypackages__/

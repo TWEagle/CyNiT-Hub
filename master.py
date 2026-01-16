@@ -264,12 +264,31 @@ def register_tools(app: Flask) -> None:
 # Main
 # =========================
 def main() -> None:
+    # --- TLS bootstrap (self-signed localhost) ---
+    tls_log = BASE_DIR / "logs" / "tls.log"
+    ssl_ctx = None
+
+    try:
+        from runtime.tls_cert import ensure_localhost_cert, trust_cert_current_user_windows
+        crt, key = ensure_localhost_cert(BASE_DIR, log_file=tls_log)
+        trust_cert_current_user_windows(BASE_DIR, log_file=tls_log)
+        ssl_ctx = (str(crt), str(key))
+    except Exception as exc:
+        log.exception("TLS bootstrap failed (falling back to HTTP): %s", exc)
+
+    # --- Create app + register routes ---
     app = create_app()
     register_beheer(app)
     register_tools(app)
 
     log.info("FLASK_APP_NAME forced: %s", app.config.get("FLASK_APP_NAME"))
-    app.run(debug=True)
+
+    # --- Run (exactly once) ---
+    # debug=False zodat Flask reloader geen dubbel proces maakt in tray-mode
+    if ssl_ctx:
+        app.run(host="localhost", port=5000, debug=False, ssl_context=ssl_ctx)
+    else:
+        app.run(host="127.0.0.1", port=5000, debug=False)
 
 
 if __name__ == "__main__":
