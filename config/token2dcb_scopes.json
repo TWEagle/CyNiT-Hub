@@ -1,0 +1,11 @@
+
+{
+  "dvl_dcbaas_app_application_admin": "DCBaaS Beheer Toepassingen",
+  "dvl_dcbaas_app_certificate_admin": "DCBaaS Beheer Certificaten",
+  "dvl_dcbaas_app_config_admin": "DCBaaS Beheer Configuratie",
+  "dvl_dcbaas_app_helpdesk": "DCBaaS Beheer Helpdesk",
+  "dvl_dcbaas_info": "DCBaaS Informatie",
+  "dvl_dcbaas_org_certificate_admin_organization": "DCBaaS Certificaatbeheerder Organisatie",
+  "dvl_dcbaas_org_workflow_operator": "DCBaaS Workflowbeheerder",
+  "vo_info": "VO Info"
+}

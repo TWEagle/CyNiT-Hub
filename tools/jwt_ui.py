@@ -2,25 +2,27 @@
 # tools/jwt_ui.py
 """
 JWT Generator tool for CyNiT-Hub
+
 - Routes:
-    GET  /jwt               → formulier (links uitleg, rechts invulvelden)
-    POST /jwt               → token genereren (iat=now, exp=now+10m, sub=iss)
-    GET  /jwt/download/<id> → token downloaden als tekstbestand
+  GET  /jwt                 → formulier (links uitleg, rechts invulvelden)
+  POST /jwt                 → token genereren (iat=now, exp=now+10m, sub=iss)
+  GET  /jwt/download/<id>   → token downloaden als tekstbestand
+
 - UI:
-    - Download JWT
-    - Kopieer token
-    - Toon/Verberg token
-    - Toon/Verberg claims
-    - Copy claims (JSON)
+  - Radiobuttons voor OP-omgeving (Productie/T&I) i.p.v. dropdown
+  - Bij upload van private.jwk: JWK.kid → issuer én subject (autofill)
+  - Download JWT, Kopieer token, Toon/Verberg token, Toon/Verberg claims, Copy claims (JSON)
+
 - Opmaak:
-    Split layout (links uitleg, rechts formulier), donkere inputs (#111, witte tekst),
-    sluit aan op bestaande main.css (.panel, .in, .btn). Fallback CSS als beheer.main_layout
-    niet aanwezig is.
+  Split layout (links uitleg, rechts formulier), donkere inputs (#111, witte tekst),
+  sluit aan op bestaande main.css (.panel, .in, .btn). Fallback CSS als beheer.main_layout
+  niet aanwezig is.
 """
 
 from __future__ import annotations
+
 import json, time, uuid, base64
-from flask import request, url_for, abort, Response
+from flask import Flask, request, url_for, abort, Response
 
 # In-memory opslag van tokens (kortlevend)
 TOKENS: dict[str, str] = {}
@@ -70,7 +72,7 @@ def _key_from_jwk(jwk_json: str):
         key = base64.urlsafe_b64decode(k + padding)
     else:
         raise ValueError(f"Unsupported kty: {kty}")
-    return key, alg
+    return key, alg, jwk_obj
 
 
 # --- Rendering helpers ---
@@ -110,8 +112,12 @@ def _page(title: str, body_html: str):
         )
 
 
-def _form(error: str | None = None, download_url: str | None = None,
-          token: str | None = None, claims_json: str | None = None) -> str:
+def _form(
+    error: str | None = None,
+    download_url: str | None = None,
+    token: str | None = None,
+    claims_json: str | None = None,
+) -> str:
     """
     Bouwt de split layout (links info, rechts form).
     Geen f-strings in HTML/JS; we gebruiken placeholders + .replace().
@@ -129,7 +135,7 @@ def _form(error: str | None = None, download_url: str | None = None,
       </p>
       <ul>
         <li><b>Issuer</b>: unieke ID (meestal een GUID)</li>
-        <li><b>Audience</b>: kies productie of test</li>
+        <li><b>Audience</b>: Productie of T&amp;I</li>
         <li><b>private.jwk</b>: upload je private JWK (RSA/EC/HMAC)</li>
       </ul>
       <p class="muted">Resultaat: downloadbare en kopieerbare JWT + claims.</p>
@@ -140,11 +146,17 @@ def _form(error: str | None = None, download_url: str | None = None,
       <label for="issuer">Issuer</label>
       <input class="in" id="issuer" name="issuer" type="text" required placeholder="bijv. 2ea9d30f-dcb3-4936-b7a6-68d458d0236c" />
 
-      <label for="audience">Audience</label>
-      <select class="in" id="audience" name="audience" required>
-        <option value="https://authenticatie.vlaanderen.be/op">https://authenticatie.vlaanderen.be/op</option>
-        <option value="https://authenticatie-ti.vlaanderen.be/op">https://authenticatie-ti.vlaanderen.be/op</option>
-      </select>
+      <label>Audience (OP-omgeving)</label>
+      <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin:-2px 0 6px 0;">
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="radio" name="audience" value="https://authenticatie.vlaanderen.be/op" checked>
+          Productie
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="radio" name="audience" value="https://authenticatie-ti.vlaanderen.be/op">
+          T&amp;I
+        </label>
+      </div>
 
       <label for="subject">Subject (altijd gelijk aan issuer)</label>
       <input class="in" id="subject" name="subject" type="text" readonly />
@@ -159,6 +171,33 @@ def _form(error: str | None = None, download_url: str | None = None,
   <!-- Resultaat / knoppen -->
   __RESULT_SECTION__
 </div>
+
+<script>
+  // subject = issuer (right column)
+  const issuerInput  = document.getElementById('issuer');
+  const subjectInput = document.getElementById('subject');
+  function syncSubject(){ subjectInput.value = issuerInput.value; }
+  issuerInput.addEventListener('input', syncSubject);
+  window.addEventListener('DOMContentLoaded', syncSubject);
+
+  // Bij upload van private.jwk → kid → issuer & subject
+  const jwkInput = document.getElementById('private_jwk');
+  jwkInput?.addEventListener('change', () => {
+    const f = jwkInput.files && jwkInput.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const jwk = JSON.parse(String(e.target.result || '{}'));
+        if (jwk.kid) {
+          issuerInput.value = String(jwk.kid);
+          subjectInput.value = String(jwk.kid);
+        }
+      } catch {}
+    };
+    r.readAsText(f, 'utf-8');
+  });
+</script>
 """
 
     # Errormelding (bovenaan resultaatgedeelte)
@@ -168,80 +207,70 @@ def _form(error: str | None = None, download_url: str | None = None,
 
     # Download/Copy/Toggles + panels
     if download_url:
-        token_safe = (token or "").replace("<", "&lt;").replace(">", "&gt;")
-        claims_safe = (claims_json or "").replace("<", "&lt;").replace(">", "&gt;")
-
+        token_safe = (token or "")
+        claims_safe = (claims_json or "")
         result_section += """
-  <div class="ok">✅ JWT aangemaakt.</div>
-  <div class="download">
-    __DL_ANCHOR__
-    <button id="copyBtn" class="btn" type="button">Kopieer token</button>
-    <button id="toggleTokenBtn" class="btn" type="button">Toon token</button>
-    <button id="toggleClaimsBtn" class="btn" type="button">Toon claims</button>
-    <button id="copyClaimsBtn" class="btn" type="button">Copy claims</button>
-  </div>
+<div class="ok">✅ JWT aangemaakt.</div>
+<div class="download">
+  __DL_ANCHOR__
+  <button id="copyBtn" class="btn" type="button">Kopieer token</button>
+  <button id="toggleTokenBtn" class="btn" type="button">Toon token</button>
+  <button id="toggleClaimsBtn" class="btn" type="button">Toon claims</button>
+  <button id="copyClaimsBtn" class="btn" type="button">Copy claims</button>
+</div>
 
-  <div id="tokenPanel" class="hidden" aria-live="polite">
-    <h3>Token</h3>
-    <pre id="tokenText">__TOKEN__</pre>
-  </div>
+<div id="tokenPanel" class="hidden" aria-live="polite">
+  <h3>Token</h3>
+  <pre id="tokenText">__TOKEN__</pre>
+</div>
 
-  <div id="claimsPanel" class="hidden" aria-live="polite">
-    <h3>Claim set</h3>
-    <pre id="claimsText">__CLAIMS__</pre>
-  </div>
+<div id="claimsPanel" class="hidden" aria-live="polite">
+  <h3>Claim set</h3>
+  <pre id="claimsText">__CLAIMS__</pre>
+</div>
 
-  <script>
-    // subject = issuer (right column)
-    const issuerInput = document.getElementById('issuer');
-    const subjectInput = document.getElementById('subject');
-    function syncSubject(){ subjectInput.value = issuerInput.value; }
-    issuerInput.addEventListener('input', syncSubject);
-    window.addEventListener('DOMContentLoaded', syncSubject);
+<script>
+  // Copy token (haalt inline of via download-url)
+  const copyBtn = document.getElementById('copyBtn');
+  const tokenPanel = document.getElementById('tokenPanel');
+  const tokenText = document.getElementById('tokenText');
 
-    // Copy token
-    const copyBtn = document.getElementById('copyBtn');
-    const tokenPanel = document.getElementById('tokenPanel');
-    const tokenText = document.getElementById('tokenText');
-    copyBtn.addEventListener('click', async () => {
-      try {
-        const inlineToken = tokenText ? tokenText.textContent.trim() : '';
-        // fallback: haal via download-url als panel nog niet open staat
-        const token = inlineToken || (await (await fetch('__DOWNLOAD_URL__')).text());
-        await navigator.clipboard.writeText(token.trim());
-        copyBtn.textContent = 'Gekopieerd ✔';
-        copyBtn.disabled = true;
-        setTimeout(() => { copyBtn.textContent = 'Kopieer token'; copyBtn.disabled = false; }, 2000);
-      } catch(e){ alert('Kopiëren mislukt: ' + e.message); }
-    });
+  copyBtn.addEventListener('click', async () => {
+    try {
+      const inlineToken = tokenText ? tokenText.textContent.trim() : '';
+      const token = inlineToken || (await (await fetch('__DOWNLOAD_URL__')).text());
+      await navigator.clipboard.writeText(token.trim());
+      copyBtn.textContent = 'Gekopieerd ✔';
+      copyBtn.disabled = true;
+      setTimeout(() => { copyBtn.textContent = 'Kopieer token'; copyBtn.disabled = false; }, 2000);
+    } catch(e){ alert('Kopiëren mislukt: ' + e.message); }
+  });
 
-    // Toggles (token/claims)
-    const claimsPanel = document.getElementById('claimsPanel');
-    const toggleTokenBtn = document.getElementById('toggleTokenBtn');
-    const toggleClaimsBtn = document.getElementById('toggleClaimsBtn');
-    function toggle(el, btn, showLabel, hideLabel){
-      const isHidden = el.classList.contains('hidden');
-      el.classList.toggle('hidden');
-      btn.textContent = isHidden ? hideLabel : showLabel;
-    }
-    toggleTokenBtn.addEventListener('click', () =>
-      toggle(tokenPanel, toggleTokenBtn, 'Toon token','Verberg token'));
-    toggleClaimsBtn.addEventListener('click', () =>
-      toggle(claimsPanel, toggleClaimsBtn, 'Toon claims','Verberg claims'));
+  // Toggles (token/claims)
+  const claimsPanel = document.getElementById('claimsPanel');
+  const toggleTokenBtn = document.getElementById('toggleTokenBtn');
+  const toggleClaimsBtn = document.getElementById('toggleClaimsBtn');
+  function toggle(el, btn, showLabel, hideLabel){
+    const isHidden = el.classList.contains('hidden');
+    el.classList.toggle('hidden');
+    btn.textContent = isHidden ? hideLabel : showLabel;
+  }
+  toggleTokenBtn.addEventListener('click', () => toggle(tokenPanel, toggleTokenBtn, 'Toon token','Verberg token'));
+  toggleClaimsBtn.addEventListener('click', () => toggle(claimsPanel, toggleClaimsBtn, 'Toon claims','Verberg claims'));
 
-    // Copy claims JSON
-    const copyClaimsBtn = document.getElementById('copyClaimsBtn');
-    const claimsText = document.getElementById('claimsText');
-    copyClaimsBtn.addEventListener('click', async () => {
-      try {
-        const claims = claimsText.textContent.trim();
-        await navigator.clipboard.writeText(claims);
-        copyClaimsBtn.textContent = 'Claims gekopieerd ✔';
-        copyClaimsBtn.disabled = true;
-        setTimeout(() => { copyClaimsBtn.textContent = 'Copy claims'; copyClaimsBtn.disabled = false; }, 2000);
-      } catch(e){ alert('Kopiëren mislukt: ' + e.message); }
-    });
-  </script>
+  // Copy claims JSON
+  const copyClaimsBtn = document.getElementById('copyClaimsBtn');
+  const claimsText = document.getElementById('claimsText');
+  copyClaimsBtn.addEventListener('click', async () => {
+    try {
+      const claims = claimsText.textContent.trim();
+      await navigator.clipboard.writeText(claims);
+      copyClaimsBtn.textContent = 'Claims gekopieerd ✔';
+      copyClaimsBtn.disabled = true;
+      setTimeout(() => { copyClaimsBtn.textContent = 'Copy claims'; copyClaimsBtn.disabled = false; }, 2000);
+    } catch(e){ alert('Kopiëren mislukt: ' + e.message); }
+  });
+</script>
 """
         result_section = (
             result_section
@@ -251,9 +280,7 @@ def _form(error: str | None = None, download_url: str | None = None,
             .replace("__CLAIMS__", claims_safe)
         )
 
-    # Injecteer de result section in body
     body = body.replace("__RESULT_SECTION__", result_section)
-
     return _page("JWT", body)
 
 
@@ -266,10 +293,9 @@ def register_web_routes(app):
     @app.post("/jwt")
     def jwt_generate():
         try:
-            issuer = (request.form.get("issuer") or "").strip()
+            issuer_form = (request.form.get("issuer") or "").strip()
             audience = (request.form.get("audience") or "").strip()
-            if not issuer:
-                return _form(error="Issuer is verplicht."), 400
+
             if audience not in ALLOWED_AUDIENCES:
                 return _form(error="Audience is ongeldig."), 400
 
@@ -278,25 +304,33 @@ def register_web_routes(app):
                 return _form(error="Upload een private.jwk (JWK JSON)."), 400
 
             jwk_json = f.read().decode("utf-8")
-            key, alg = _key_from_jwk(jwk_json)
+            key, alg, jwk_obj = _key_from_jwk(jwk_json)
+
+            # Server-side safety: prefer kid als issuer als aanwezig
+            issuer = issuer_form or (jwk_obj.get("kid") or "")
+            if not issuer:
+                return _form(error="Issuer is verplicht (kan uit JWK.kid gehaald worden)."), 400
 
             now = int(time.time())
             claims = {
                 "iss": issuer,
-                "sub": issuer,     # subject = issuer
+                "sub": issuer,         # subject = issuer
                 "aud": audience,
                 "iat": now,
-                "exp": now + 600,  # 10 minuten
+                "exp": now + 600,      # 10 minuten
             }
             token = jwt.encode(claims, key, algorithm=alg)
 
             token_id = str(uuid.uuid4())
             TOKENS[token_id] = token
             dl = url_for("jwt_download", token_id=token_id, _external=False)
-            return _form(error=None, download_url=dl,
-                         token=token,
-                         claims_json=json.dumps(claims, ensure_ascii=False, indent=2))
 
+            return _form(
+                error=None,
+                download_url=dl,
+                token=token,
+                claims_json=json.dumps(claims, ensure_ascii=False, indent=2),
+            )
         except Exception as e:
             return _form(error=f"Fout: {e}"), 400
 
@@ -308,5 +342,13 @@ def register_web_routes(app):
         return Response(
             token,
             mimetype="text/plain",
-            headers={"Content-Disposition": 'attachment; filename=\"token.jwt\"'},
+            headers={"Content-Disposition": 'attachment; filename="token.jwt"'},
         )
+
+
+# ---- Standalone bootstrap (hybride modus) ----
+if __name__ == "__main__":
+    _app = Flask("jwt_ui_standalone")
+    register_web_routes(_app)
+    print("JWT UI standalone draait op: http://127.0.0.1:5005/jwt")
+    _app.run("127.0.0.1", 5005, debug=True)

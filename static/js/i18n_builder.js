@@ -1,6 +1,6 @@
 
-/* --------------------------------------------------------------------------
- * i18n Builder — UI bootstrapping & editors orchestration
+/* ─────────────────────────────────────────────────────────────────────────────
+ * i18n Builder — UI bootstrapping & editors orchestration  (HYBRID)
  * Works with: /i18n/i18n_builder.json + /i18n/i18n_modes.json
  * Editors: Tiptap (markdown), TinyMCE (html), CodeMirror 6 (css/json/xml/raw)
  * Includes:
@@ -8,18 +8,19 @@
  *  - Auto snapshots to /i18n/snapshot every 60s + on mode switch + on unload
  *  - Status indicator + spinner during snapshotting
  *  - Live HTML preview & live CSS injection
- *  - ZIP export (JS-only, store mode)
- *  - CM6 only (no CM5 fallback), local ESM imports with cache-buster
- * -------------------------------------------------------------------------- */
+ *  - ZIP export (store-only, minimal JS implementation)
+ *  - Local ESM imports with cache-buster; hybrid path fallbacks (Hub + standalone)
+ * ───────────────────────────────────────────────────────────────────────────── */
+
 (() => {
   const state = {
     config: null,
     modes: null,
     currentMode: null,
     editors: {
-      tiptap: null,
-      tinymce: null,
-      codemirror: null,
+      tiptap: null,     // Tiptap Editor instance
+      tinymce: null,    // TinyMCE Editor instance
+      codemirror: null, // CodeMirror 6 EditorView
     },
     elements: {},
     autosaveKey: 'i18n_builder_autosave_v1',
@@ -29,27 +30,42 @@
 
   const SNAPSHOT_INTERVAL_MS = 60_000; // 60 sec
 
-  // ---------------------------- Helpers ------------------------------------
+  // ─────────────────────────────────────────────────────────────
+  // Small DOM helpers
+  // ─────────────────────────────────────────────────────────────
   const $  = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-  const wait = ms => new Promise(res => setTimeout(res, ms));
+  const wait = (ms) => new Promise(res => setTimeout(res, ms));
 
-  async function loadJSON(url) {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Kon JSON niet laden: ${url}`);
-    return res.json();
+  // Ensure we have our CSS (works in Hub + standalone)
+  ensureCssLink('/static/css/i18n_builder.css', ['css/i18n_builder.css']);
+
+  function ensureCssLink(primaryHref, fallbacks = []) {
+    const id = 'i18n-builder-css';
+    if (document.getElementById(id)) return;
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = primaryHref;
+    document.head.appendChild(link);
+
+    // Optional: fallbacks — if primary 404't, browser will still keep link;
+    // we add a soft fallback after a tick (harmless if not needed).
+    setTimeout(() => {
+      if (!document.styleSheets.length) {
+        for (const alt of fallbacks) {
+          const l2 = document.createElement('link');
+          l2.rel = 'stylesheet';
+          l2.href = alt;
+          document.head.appendChild(l2);
+        }
+      }
+    }, 200);
   }
 
-  function importFresh(url) {
-    try {
-      const v = (state?.config?.version) || Date.now();
-      const sep = url.includes('?') ? '&' : '?';
-      return import(`${url}${sep}v=${v}`);
-    } catch {
-      return import(url);
-    }
-  }
-
+  // ─────────────────────────────────────────────────────────────
+  // Local storage autosave
+  // ─────────────────────────────────────────────────────────────
   function saveAutosave(payload) {
     try { localStorage.setItem(state.autosaveKey, JSON.stringify(payload)); }
     catch (e) { console.warn('Autosave faalde', e); }
@@ -61,29 +77,12 @@
     } catch { return null; }
   }
   function debounce(fn, ms = 300) {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
-  function ensureStyleNode() {
-    let node = document.getElementById(state.styleNodeId);
-    if (!node) {
-      node = document.createElement('style');
-      node.id = state.styleNodeId;
-      document.head.appendChild(node);
-    }
-    return node;
-  }
-  function blobDownload(name, blob) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = name; a.click();
-    URL.revokeObjectURL(url);
-  }
-  function fmtTime(ts = Date.now()) {
-    const d = new Date(ts);
-    const p = n => String(n).padStart(2, '0');
-    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Status + spinner
+  // ─────────────────────────────────────────────────────────────
   function updateStatus(message, kind = 'info') {
     if (!state.elements.status) return;
     state.elements.status.textContent = message;
@@ -107,6 +106,78 @@
     }, 250);
   }
 
+  // Spinner keyframes (idempotent)
+  if (!document.getElementById('i18n_spin_keyframes')) {
+    const k = document.createElement('style');
+    k.id = 'i18n_spin_keyframes';
+    k.textContent = `@keyframes i18n_spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`;
+    document.head.appendChild(k);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Path & import helpers (HYBRID)
+  // ─────────────────────────────────────────────────────────────
+  function normalizePath(p) {
+    // Accept absolute URLs
+    if (!p) return '';
+    if (/^https?:\/\//i.test(p)) return p.replace(/\/+$/,'');
+    // Strip leading slashes for base, let importFresh try both /base and base
+    return p.replace(/^\/+/, '').replace(/\/+$/,'');
+  }
+
+  async function importFresh(urlOrPath) {
+    // Try several variants: /path, path  (both with cache-buster)
+    const v = state?.config?.version ?? Date.now();
+    const base = urlOrPath || '';
+    const sep = base.includes('?') ? '&' : '?';
+    const candidates = [];
+
+    if (/^https?:\/\//i.test(base)) {
+      candidates.push(base);
+    } else {
+      const cleaned = base.replace(/^\/+/, '');
+      candidates.push('/' + cleaned, cleaned);
+    }
+
+    let lastErr;
+    for (const u of candidates) {
+      try {
+        return await import(`${u}${sep}v=${v}`);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    // Final attempt without cache-buster
+    try { return await import(base); } catch (e) { lastErr = e; }
+    throw lastErr || new Error(`Kon module niet laden: ${urlOrPath}`);
+  }
+
+  function ensureStyleNode() {
+    let node = document.getElementById(state.styleNodeId);
+    if (!node) {
+      node = document.createElement('style');
+      node.id = state.styleNodeId;
+      document.head.appendChild(node);
+    }
+    return node;
+  }
+
+  function blobDownload(name, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function fmtTime(ts = Date.now()) {
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Snapshots (server-side)
+  // ─────────────────────────────────────────────────────────────
   function extForMode(mode) {
     switch (mode) {
       case 'markdown': return 'md';
@@ -132,7 +203,7 @@
         body: JSON.stringify({ filename, content })
       });
       if (r.ok) updateStatus(`Snapshot • ${fmtTime()}`, 'ok');
-      else      updateStatus(`Snapshot mislukt (${r.status})`, 'warn');
+      else updateStatus(`Snapshot mislukt (${r.status})`, 'warn');
     } catch (e) {
       console.debug('Snapshot mislukte (genegeerd):', e?.message ?? e);
       updateStatus('Snapshot mislukt', 'warn');
@@ -141,12 +212,15 @@
     }
   }
 
-  // Minimaal ZIP (store-only)
+  // ─────────────────────────────────────────────────────────────
+  // ZIP (store-only, minimal)
+  // ─────────────────────────────────────────────────────────────
   async function makeZip(files) {
     const encoder = new TextEncoder();
     const fileRecords = [];
     let offset = 0;
     const fileParts = [];
+
     const crc32 = (str) => {
       let c = 0 ^ (-1);
       for (let i = 0; i < str.length; i++) {
@@ -155,23 +229,28 @@
       return (c ^ (-1)) >>> 0;
     };
     const table = (() => {
-      let c, table = [];
+      let c, t = [];
       for (let n = 0; n < 256; n++) {
         c = n;
         for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-        table[n] = c >>> 0;
+        t[n] = c >>> 0;
       }
-      return table;
+      return t;
     })();
-    function u32(n) { const b = new Uint8Array(4);
-      b[0]=n & 0xFF; b[1]=(n>>>8)&0xFF; b[2]=(n>>>16)&0xFF; b[3]=(n>>>24)&0xFF; return b; }
-    function u16(n) { const b = new Uint8Array(2);
-      b[0]=n & 0xFF; b[1]=(n>>>8)&0xFF; return b; }
+    const u32 = (n) => {
+      const b = new Uint8Array(4);
+      b[0]=n & 0xFF; b[1]=(n>>>8)&0xFF; b[2]=(n>>>16)&0xFF; b[3]=(n>>>24)&0xFF; return b;
+    };
+    const u16 = (n) => {
+      const b = new Uint8Array(2);
+      b[0]=n & 0xFF; b[1]=(n>>>8)&0xFF; return b;
+    };
 
     for (const f of files) {
       const nameBytes = encoder.encode(f.name);
       const contentBytes = (f.binary instanceof Uint8Array) ? f.binary : encoder.encode(f.content ?? '');
       const crc = f.content ? crc32(f.content) : 0;
+
       const LFH = [
         u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
         u32(crc), u32(contentBytes.length), u32(contentBytes.length),
@@ -181,6 +260,7 @@
       fileRecords.push({ nameBytes, crc, size: contentBytes.length, offset });
       offset += 30 + nameBytes.length + contentBytes.length;
     }
+
     const centralDirParts = [];
     let centralDirSize = 0;
     for (const r of fileRecords) {
@@ -192,6 +272,7 @@
       centralDirParts.push(...CDH, r.nameBytes);
       centralDirSize += 46 + r.nameBytes.length;
     }
+
     const centralDirStart = offset;
     const EOCD = [
       u32(0x06054b50), u16(0), u16(0),
@@ -199,26 +280,31 @@
       u32(centralDirSize), u32(centralDirStart),
       u16(0)
     ];
+
     const totalSize = offset + centralDirSize + 22;
     const out = new Uint8Array(totalSize);
     let ptr = 0;
-    for (const part of fileParts)       { out.set(part, ptr); ptr += part.length; }
-    for (const part of centralDirParts) { out.set(part, ptr); ptr += part.length; }
-    for (const part of EOCD)            { out.set(part, ptr); ptr += part.length; }
+    for (const part of fileParts)      { out.set(part, ptr); ptr += part.length; }
+    for (const part of centralDirParts){ out.set(part, ptr); ptr += part.length; }
+    for (const part of EOCD)           { out.set(part, ptr); ptr += part.length; }
     return new Blob([out], { type: 'application/zip' });
   }
 
-  // ---------------------------- Editors init -------------------------------
+  // ─────────────────────────────────────────────────────────────
+  // Editors init
+  // ─────────────────────────────────────────────────────────────
   async function initTiptap(container, placeholderText) {
-    const base = state.config.ui.editors.tiptap.path;
+    const base = normalizePath(state.config.ui.editors.tiptap.path);
     const modules = state.config.ui.editors.tiptap.modules;
+
     const [{ Editor }, StarterKit, Link, Image, Placeholder] = await Promise.all([
-      importFresh(`/${base}/${modules.core}`),
-      importFresh(`/${base}/${modules.starterkit}`),
-      importFresh(`/${base}/${modules.link}`),
-      importFresh(`/${base}/${modules.image}`),
-      importFresh(`/${base}/${modules.placeholder}`)
+      importFresh(`${base}/${modules.core}`),
+      importFresh(`${base}/${modules.starterkit}`),
+      importFresh(`${base}/${modules.link}`),
+      importFresh(`${base}/${modules.image}`),
+      importFresh(`${base}/${modules.placeholder}`)
     ]);
+
     const editor = new Editor({
       element: container,
       extensions: [
@@ -240,9 +326,12 @@
 
   async function initTinyMCE(textarea) {
     const conf = state.config.ui.editors.tinymce.config ?? {};
-    const basePath = state.config.ui.editors.tinymce.path;
+    // Default fallback path wanneer config leeg zou zijn
+    const basePathConfigured = state.config.ui.editors.tinymce.path || 'static/vendor/tinymce';
+    const basePath = normalizePath(basePathConfigured);
+
     if (!window.tinymce) {
-      await importFresh(`/${basePath}/tinymce.min.js`);
+      await importFresh(`${basePath}/tinymce.min.js`);
     }
     const darkDefault = (state.config.ui?.dark_default ??
                          state.config.features?.dark_mode_default ?? true);
@@ -263,19 +352,18 @@
           }, 200));
           ed.on('Init', () => resolve(ed));
         },
-        base_url: `/${basePath}`,
+        base_url: `/${basePath}`, // let TinyMCE resolve skins/plugins relatively
         suffix: '.min'
       });
     });
   }
 
   async function initCodeMirror(container, syntax = 'plaintext') {
-    const base = state.config.ui.editors.codemirror.path; // 'static/vendor/codemirror'
-    // Pure CM6 met lokale mapstructuur
-    const viewMod  = await importFresh(`/${base}/view/index.js`);
-    const stateMod = await importFresh(`/${base}/state/index.js`);
-    const langSupport = await loadCM6LanguageForSyntax(base, syntax); // kan null zijn
-
+    const base = normalizePath(state.config.ui.editors.codemirror.path); // e.g. 'static/vendor/codemirror'
+    // CM6 local layout
+    const viewMod = await importFresh(`${base}/view/index.js`);
+    const stateMod = await importFresh(`${base}/state/index.js`);
+    const langSupport = await loadCM6LanguageForSyntax(base, syntax); // can be null
     const { EditorView } = viewMod;
     const { EditorState } = stateMod;
 
@@ -302,12 +390,12 @@
   async function loadCM6LanguageForSyntax(base, syntax) {
     try {
       switch (syntax) {
-        case 'markdown': return (await importFresh(`/${base}/lang-markdown/index.js`)).markdown();
-        case 'html':     return (await importFresh(`/${base}/lang-html/index.js`)).html();
-        case 'css':      return (await importFresh(`/${base}/lang-css/index.js`)).css();
-        case 'json':     return (await importFresh(`/${base}/lang-json/index.js`)).json();
-        case 'xml':      return (await importFresh(`/${base}/lang-xml/index.js`)).xml();
-        default:         return null;
+        case 'markdown': return (await importFresh(`${base}/lang-markdown/index.js`)).markdown();
+        case 'html':     return (await importFresh(`${base}/lang-html/index.js`)).html();
+        case 'css':      return (await importFresh(`${base}/lang-css/index.js`)).css();
+        case 'json':     return (await importFresh(`${base}/lang-json/index.js`)).json();
+        case 'xml':      return (await importFresh(`${base}/lang-xml/index.js`)).xml();
+        default: return null;
       }
     } catch (e) {
       console.warn('Kon CM6 language niet laden, val terug op plain.', e);
@@ -315,26 +403,34 @@
     }
   }
 
-  // ---------------------------- Content plumbing ---------------------------
+  // ─────────────────────────────────────────────────────────────
+  // Content plumbing (preview + live CSS + autosave)
+  // ─────────────────────────────────────────────────────────────
   function handleContentChanged(content) {
     const modeDef = state.modes.modes[state.currentMode];
+
     if (modeDef) {
+      // Live HTML preview
       if (state.currentMode === 'html' && state.config.features.live_preview) {
         const ifr = state.elements.preview;
         if (ifr) {
           const doc = ifr.contentDocument ?? ifr.contentWindow?.document;
           if (doc) {
+            // Write raw HTML quickly – server has /i18n/preview endpoint for sanitisatie indien nodig
             doc.open();
             doc.write(content ?? '');
             doc.close();
           }
         }
       }
+
+      // Live CSS injectie
       if (state.currentMode === 'css' && state.config.features.live_css_apply) {
         const node = ensureStyleNode();
         node.textContent = content ?? '';
       }
     }
+
     // Autosave payload
     const payload = { mode: state.currentMode, content, ts: Date.now() };
     saveAutosave(payload);
@@ -356,7 +452,6 @@
           // CM6
           return cm.state.doc.toString();
         }
-        // (geen CM5 meer)
         return '';
       }
     }
@@ -374,14 +469,16 @@
         const cm = state.editors.codemirror;
         if (!cm) return;
         if (cm.state && cm.update) {
-          // CM6
+          // CM6 — replace entire doc
           cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: content ?? '' } });
         }
       }
     }
   }
 
-  // ---------------------------- UI build -----------------------------------
+  // ─────────────────────────────────────────────────────────────
+  // UI build
+  // ─────────────────────────────────────────────────────────────
   function buildUI() {
     state.elements.container = $('.i18n-builder-container') ?? document.body;
 
@@ -421,12 +518,6 @@
       opacity: '0',
       transition: 'opacity 0.2s ease',
     });
-    if (!document.getElementById('i18n_spin_keyframes')) {
-      const k = document.createElement('style');
-      k.id = 'i18n_spin_keyframes';
-      k.textContent = `@keyframes i18n_spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`;
-      document.head.appendChild(k);
-    }
     leftGroup.appendChild(state.elements.spinner);
     statusWrap.appendChild(leftGroup);
 
@@ -476,11 +567,9 @@
     const btnExport = document.createElement('button');
     btnExport.className = 'i18n-btn'; btnExport.textContent = 'Export ZIP';
     btnExport.addEventListener('click', onExportZip);
-
     const btnRestore = document.createElement('button');
     btnRestore.className = 'i18n-btn'; btnRestore.textContent = 'Herstel Autosave';
     btnRestore.addEventListener('click', onRestoreAutosave);
-
     panel.appendChild(btnExport);
     panel.appendChild(btnRestore);
     state.elements.container.appendChild(panel);
@@ -513,9 +602,9 @@
     if (state.currentMode === modeKey) return;
 
     // Hide all editors
-    state.elements.tiptapHost.style.display   = 'none';
-    state.elements.tinymceArea.style.display  = 'none';
-    state.elements.cmHost.style.display       = 'none';
+    state.elements.tiptapHost.style.display = 'none';
+    state.elements.tinymceArea.style.display = 'none';
+    state.elements.cmHost.style.display = 'none';
 
     // Update active tab
     $$('.i18n-mode-tab', state.elements.switcher).forEach(t => {
@@ -543,7 +632,7 @@
       if (!state.editors.codemirror) {
         state.editors.codemirror = await initCodeMirror(state.elements.cmHost, modeDef.syntax ?? 'plaintext');
       } else {
-        // (optioneel) reconfigure taal extensie; simpel gehouden
+        // Optional: reconfigure language; keeping it simple for stability
       }
     }
 
@@ -555,16 +644,14 @@
     } else {
       const tpl = state.config.templates?.[modeKey];
       const cur = getCurrentContent();
-      if (tpl && (!cur || cur.trim() === '')) {
-        setCurrentContent(tpl);
-      }
+      if (tpl && (!cur || cur.trim() === '')) setCurrentContent(tpl);
     }
 
-    // Sync preview & css + status
+    // Sync preview & CSS + status
     handleContentChanged(getCurrentContent());
     updateStatus(`Mode: ${modeKey}`, 'info');
 
-    // Snapshot bij mode-wissel
+    // Snapshot bij moduswissel
     postSnapshot().catch(() => {});
   }
 
@@ -613,15 +700,17 @@
     updateStatus('Bestand(en) geïmporteerd', 'ok');
   }
 
-  // ---------------------------- Bootstrap ----------------------------------
+  // ─────────────────────────────────────────────────────────────
+  // Bootstrap (HYBRID config loading)
+  // ─────────────────────────────────────────────────────────────
   async function boot() {
-    // Load configs: eerst /i18n/... (geserveerd door Flask vanuit /config), dan fallbacks
+    // Load configs: eerst /i18n/... (Flask), dan fallbacks
     async function loadWithFallback(candidates) {
       for (const url of candidates) {
         try {
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) return await res.json();
-        } catch (_) { /* try next */ }
+        } catch (_e) { /* try next */ }
       }
       throw new Error('Geen geldige config gevonden: ' + candidates.join(', '));
     }
@@ -631,6 +720,7 @@
       '/static/config/i18n_builder.json',
       'i18n_builder.json'
     ]);
+
     state.modes = await loadWithFallback([
       '/i18n/i18n_modes.json',
       '/static/config/i18n_modes.json',
@@ -679,4 +769,5 @@
       c.appendChild(pre);
     });
   });
+
 })();

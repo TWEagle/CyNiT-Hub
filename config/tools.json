@@ -17,22 +17,6 @@
       "hidden": false
     },
     {
-      "id": "jwt_ui",
-      "name": "JWT Generator",
-      "script": "jwt_ui.py",
-      "web_path": "/jwt",
-      "icon_web": "🔐",
-      "icon": "🔐",
-      "description": "Genereer een gesigneerde JWT (iss=sub, aud, iat, exp).",
-      "accent": "#00ffaa",
-      "accent_mode": "ring",
-      "accent_width": 40,
-      "ring_width": 10,
-      "ring_glow": 50,
-      "enabled": true,
-      "hidden": false
-    },
-    {
       "id": "cert_viewer",
       "name": "Certificate / CSR Viewer",
       "script": "cert_viewer.py",
@@ -61,7 +45,7 @@
       "accent_width": 24,
       "ring_width": 10,
       "ring_glow": 24,
-      "enabled": true,
+      "enabled": false,
       "hidden": false
     },
     {
@@ -93,7 +77,7 @@
       "accent_width": 26,
       "ring_width": 10,
       "ring_glow": 26,
-      "enabled": true,
+      "enabled": false,
       "hidden": false
     },
     {
@@ -109,6 +93,70 @@
       "accent_width": 24,
       "ring_width": 10,
       "ring_glow": 24,
+      "enabled": true,
+      "hidden": false
+    },
+    {
+      "id": "csr2base64",
+      "name": "CSR2Base64",
+      "script": "csr2base64.py",
+      "web_path": "/csr2base64",
+      "icon_web": "🧾",
+      "icon": "🧾",
+      "description": "Upload/plak CSR/CRT/PEM en krijg Base64 single-line + download .b64.",
+      "accent": "#00ffaa",
+      "accent_mode": "ring",
+      "accent_width": 24,
+      "ring_width": 10,
+      "ring_glow": 24,
+      "enabled": true,
+      "hidden": false
+    },
+    {
+      "id": "jwt_ui",
+      "name": "JWT Generator",
+      "script": "jwt_ui.py",
+      "web_path": "/jwt",
+      "icon_web": "🔐",
+      "icon": "🔐",
+      "description": "Genereer een gesigneerde JWT (iss=sub, aud, iat, exp).",
+      "accent": "#00ffaa",
+      "accent_mode": "ring",
+      "accent_width": 40,
+      "ring_width": 10,
+      "ring_glow": 50,
+      "enabled": true,
+      "hidden": false
+    },
+    {
+      "id": "token2dcb",
+      "name": "Token DCBaaS",
+      "script": "token2dcb.py",
+      "web_path": "/token2dcb",
+      "icon_web": "🔑",
+      "icon": "🔑",
+      "description": "OAuth2 client_credentials voor DCBaaS met kopieerknop, toggles, scopes-tab en JSON mapping-editor.",
+      "accent": "#35e6df",
+      "accent_mode": "ring",
+      "accent_width": 28,
+      "ring_width": 10,
+      "ring_glow": 28,
+      "enabled": true,
+      "hidden": false
+    },
+    {
+      "id": "dcbapi",
+      "name": "DCB API (Apps & Certs)",
+      "script": "dcbapi.py",
+      "web_path": "/dcbapi",
+      "icon_web": "🧰",
+      "icon": "🧰",
+      "description": "DCBaaS API: Applications (Add/Update/Delegate/Approve/Delete) + Certificates (Add/Renew/Revoke/Search) met Health en JWK-based token.",
+      "accent": "#ff4d4f",
+      "accent_mode": "ring",
+      "accent_width": 28,
+      "ring_width": 10,
+      "ring_glow": 28,
       "enabled": true,
       "hidden": false
     }

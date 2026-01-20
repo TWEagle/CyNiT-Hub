@@ -5,6 +5,72 @@
    Dark-mode default, light-mode fallback
 ----------------------------------------------------------*/
 
+
+/* ────────────────────────────────────────────────────────────────
+   i18n Builder — HYBRIDE Stylesheet
+   Werkt zowel in de Hub (Hub-shell) als Standalone (fallback HTML)
+   ──────────────────────────────────────────────────────────────── */
+
+/* Detecteer fallback/standalone layout (geen Hub-shell container) */
+html:not(:has(.hub-shell)), 
+body:not(:has(.hub-shell)) {
+    --i18n-bg: #1e1e1e;
+    --i18n-bg-dark: #1e1e1e;
+    --i18n-text: #e6e6e6;
+    --i18n-border: #444;
+    --i18n-tab-bg: #2c2c2c;
+    --i18n-tab-bg-dark: #2c2c2c;
+    --i18n-tab-active-dark: #3a3a3a;
+}
+
+/* Kleuren blijven identiek aan jouw oorspronkelijke file */
+:root {
+    --i18n-bg: #ffffff;
+    --i18n-bg-dark: #1e1e1e;
+    --i18n-border: #d0d0d0;
+    --i18n-border-dark: #444;
+    --i18n-primary: #4285f4;
+    --i18n-primary-dark: #82b1ff;
+    --i18n-tab-bg: #f5f5f5;
+    --i18n-tab-bg-dark: #2c2c2c;
+    --i18n-tab-active: #ffffff;
+    --i18n-tab-active-dark: #3a3a3a;
+    --i18n-text: #222;
+    --i18n-text-dark: #ddd;
+    --i18n-status-info: #8ab4f8;
+    --i18n-status-ok: #57d38c;
+    --i18n-status-warn: #ffb05e;
+    --i18n-status-typing: #f5c36b;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   MAIN CONTAINER
+   ──────────────────────────────────────────────────────────────── */
+.i18n-builder-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 15px;
+
+    background: var(--i18n-bg);
+    color: var(--i18n-text);
+}
+
+.dark .i18n-builder-container {
+    background: var(--i18n-bg-dark);
+    color: var(--i18n-text-dark);
+}
+
+/* De rest van jouw originele CSS blijft identiek hieronder —— */
+/* (Niets verwijderd, enkel bovenstaande hybride blok toegevoegd) */
+
+
+/* STATUS + MODE SWITCHER + EDITOR WRAPPER + TIPTAP + TINYMCE +
+   CODEMIRROR + PREVIEW + DROPZONE + BUTTONS + EXPORT PANEL
+   -> volledige originele inhoud uit jouw file hier ongewijzigd */
+/* ──────────────────────────────────────────────────────────────── */
+
+
 :root {
     --i18n-bg: #ffffff;
     --i18n-bg-dark: #1e1e1e;

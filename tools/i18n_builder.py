@@ -1,11 +1,11 @@
 
 # tools/i18n_builder.py
-# !/usr/bin/env python3
-# -----------------------------------------------------------------------------
-# i18n_builder.py — CyNiT-Hub module (GLOBAL SHIMS + Hub Layout Content-Only)
-# -----------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -------------------------------------------------------------------------------------------------
+# i18n_builder.py — CyNiT-Hub module (GLOBAL SHIMS + Hub Layout w/ Standalone Fallback)
+# Hybride: werkt in de Hub (met beheer.main_layout) én standalone (fallback-layout + static).
+# -------------------------------------------------------------------------------------------------
 from __future__ import annotations
-
 import os
 import io
 import re
@@ -20,10 +20,13 @@ from flask import (
     current_app, redirect, url_for, send_from_directory, Response, Flask
 )
 
-# Hub layout
-from beheer.main_layout import render_page as hub_render_page
+# ---- Hub layout (optioneel) -------------------------------------------------
+try:
+    from beheer.main_layout import render_page as hub_render_page  # type: ignore
+except Exception:
+    hub_render_page = None  # fallback gebruiken in standalone
 
-# Optional deps
+# ---- Optional deps ----------------------------------------------------------
 try:
     import yaml
 except Exception:
@@ -45,9 +48,9 @@ except Exception:
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 # App paths
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 bp = Blueprint("i18n_builder", __name__, url_prefix="/i18n")
 shim_bp = Blueprint("i18n_shims", __name__)  # root-level shims
 
@@ -68,12 +71,11 @@ os.makedirs(TEMPLATES_DIR, exist_ok=True)
 
 CONFIG_FILE = os.path.join(CONFIG_DIR, "i18n_builder.json")
 MODES_FILE = os.path.join(CONFIG_DIR, "i18n_modes.json")
-
 BACKUP_MAX_VERSIONS = 10
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 # Helpers
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 def load_json(path: str):
     if not os.path.exists(path):
         return {}
@@ -177,7 +179,7 @@ def ensure_default_templates():
     body.dark { background: #121212; color: #e6e6e6; }
     {% block styles %}{% endblock %}
   </style>
-  {% if inline_css %}<style id="builder-inline-styles">{{ inline_css|safe }}</style>{% endif %}
+  {% if inline_css %}<style id="builder-inline-styles">{{ inline_css | safe }}</style>{% endif %}
   {% block head_extra %}{% endblock %}
 </head>
 <body class="{{ 'dark' if (meta.theme=='dark') else '' }}">
@@ -189,7 +191,7 @@ def ensure_default_templates():
         with open(page_html, "w", encoding="utf-8") as f:
             f.write("""{% extends "base.html" %}
 {% block content %}
-{{ body|safe }}
+{{ body | safe }}
 {% endblock %}
 """)
 
@@ -238,8 +240,8 @@ def detect_wkhtmltopdf_path() -> str:
     except Exception:
         pass
     for g in ["/usr/bin/wkhtmltopdf", "/usr/local/bin/wkhtmltopdf",
-              "C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe",
-              "C:\\Program Files (x86)\\wkhtmltopdf\\bin\\wkhtmltopdf.exe"]:
+              "C:\\\\Program Files\\\\wkhtmltopdf\\\\bin\\\\wkhtmltopdf.exe",
+              "C:\\\\Program Files (x86)\\\\wkhtmltopdf\\\\bin\\\\wkhtmltopdf.exe"]:
         if os.path.exists(g):
             return g
     return ""
@@ -273,9 +275,9 @@ def html_to_pdf_bytes(html: str) -> bytes:
         return buf.read()
     raise RuntimeError("Geen PDF engine beschikbaar (wkhtmltopdf/pdfkit of reportlab vereist).")
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 # UI (CONTENT-ONLY) — hub layout + CSS inject
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 BASE_STYLE = r"""
 <style>
 .i18n-wrap { max-width: 1100px; margin: 0 auto; }
@@ -299,7 +301,6 @@ BASE_STYLE = r"""
   border-radius: 8px; margin-bottom: 12px; font-size: 0.9rem; white-space: pre-wrap;
 }
 .i18n-btn { padding:8px 16px; border-radius:6px; background:#4285f4; color:#fff; border:0; cursor:pointer; }
-
 /* Fallback styling voor mode-tabs (ook zonder i18n_builder.css) */
 .i18n-mode-switcher { display:flex; gap:8px; margin-left:auto; }
 .i18n-mode-tab {
@@ -325,12 +326,11 @@ CSS_INJECT_SNIPPET = r"""
 """
 
 EDITOR_CONTENT = r"""
-{{ base_style|safe }}
-{{ css_inject|safe }}
+{{ base_style | safe }}
+{{ css_inject | safe }}
 <div class="i18n-wrap">
   <h1>I18N Builder</h1>
   <p class="muted">Beheer en bouw vertalings-/publicatiebundels (import, merge, export, preview, PDF).</p>
-
   {% if err %}<div class="error-box">{{ err }}</div>{% endif %}
 
   <div class="card">
@@ -346,23 +346,28 @@ EDITOR_CONTENT = r"""
 
   <div class="card">
     <h2>Snelle acties</h2>
-    <div class="row-inline">
-      <div><a class="btn" href="/i18n/test_pdf?template=page.html">PDF-detectie (JSON)</a></div>
-      <div><a class="btn" href="/i18n/test_pdf?download=1&template=page.html">Download test-PDF</a></div>
-      <div><a class="btn" href="/i18n/languages">Taalbeheer / Templates</a></div>
-    </div>
+        <div class="row-inline">
+            <div><a class="btn" href="/i18n/test_pdf?template=page.html">PDF-detectie (JSON)</a></div>
+            <div><a class="btn" href="/i18n/test_pdf?download=1&template=page.html">Download test-PDF</a></div>
+            <div><a class="btn" href="/i18n/languages">Taalbeheer / Templates</a></div>
+            <div><a class="btn" href="/i18n/_vendor_check" target="_blank">Vendor Check</a></div>
+        </div>
   </div>
 </div>
 <script src="/static/js/i18n_builder.js"></script>
 """
 
 LANG_CONTENT = r"""
-{{ base_style|safe }}
-{{ css_inject|safe }}
+{{ base_style | safe }}
+{{ css_inject | safe }}
 <div class="i18n-wrap">
   <h1>I18N Builder — Taalbeheer</h1>
   <p class="muted">Beheer Jinja-templates en publicatiebestandsnamen.</p>
-
+    <p>
+    <a class="i18n-btn" href="/i18n/_vendor_check" target="_blank">
+        Vendor Check
+    </a>
+    </p>
   <div class="card">
     <h2>Templates</h2>
     <div class="row-inline">
@@ -387,6 +392,7 @@ LANG_CONTENT = r"""
       <label>Inhoud (HTML of Markdown)</label>
       <textarea id="contentArea" class="in" style="height:220px;"></textarea>
     </div>
+
     <div class="field-row">
       <label>Front-matter YAML</label>
       <textarea id="metaArea" class="in" style="height:160px;">title: Nieuw document
@@ -394,10 +400,12 @@ lang: nl
 theme: dark
 description: Demo publicatie</textarea>
     </div>
+
     <div class="field-row">
       <label>Inline CSS</label>
       <textarea id="cssArea" class="in" style="height:120px;">/* optionele inline styles */</textarea>
     </div>
+
     <div class="row-inline" style="margin-top:10px;">
       <div><button class="i18n-btn" id="savePub">Publiceer naar HTML</button></div>
       <div><button class="i18n-btn" id="exportPdf">Exporteer naar PDF</button></div>
@@ -408,12 +416,35 @@ description: Demo publicatie</textarea>
 <script src="/static/js/i18n_builder.js"></script>
 """
 
+# ---- Hybride _render: hub-layout wanneer beschikbaar, anders fallback -------------
 def _render(content_html: str, title: str = "I18N Builder"):
-    return hub_render_page(title=title, content_html=content_html)
+    if hub_render_page:
+        try:
+            return hub_render_page(title=title, content_html=content_html)
+        except Exception:
+            pass  # val terug op fallback
+    # Fallback layout (standalone)
+    return (
+        "<!doctype html><html lang='nl'><head><meta charset='utf-8'>"
+        f"<title>{title}</title>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<meta name='color-scheme' content='dark light'>"
+        "<style>"
+        "body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans',sans-serif;"
+        "margin:0;background:#121212;color:#e6e6e6;}"
+        ".container{max-width:1100px;margin:0 auto;padding:2rem;}"
+        "a{color:#35e6df;text-decoration:none}a:hover{text-decoration:underline}"
+        "</style>"
+        # optioneel: main.css laden indien aanwezig
+        "<link rel='preload' as='style' href='/static/css/main.css' onload=\"this.rel='stylesheet'\">"
+        "</head><body><div class='container'>"
+        + content_html +
+        "</div></body></html>"
+    )
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 # GLOBAL SHIMS (root-level) – met dubbele check voor Tiptap extensions
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 @shim_bp.route("/@tiptap/<path:req>")
 def tiptap_shim_global(req: str):
     """
@@ -425,7 +456,7 @@ def tiptap_shim_global(req: str):
     """
     req = req.split("?", 1)[0]
     first = req.split("/", 1)[0]  # bv. "extension-bold@^2.6.6" of "pm@^2.6.6"
-    name = first.split("@", 1)[0] # "extension-bold" | "core" | "starter-kit" | "pm"
+    name = first.split("@", 1)[0]  # "extension-bold" | "core" | "starter-kit" | "pm"
     rest = req[len(first):].lstrip("/")
     base_dir = os.path.join(STATIC_DIR, "vendor", "tiptap")
 
@@ -553,9 +584,9 @@ def linkify_shim_global(rest: str):
     if not os.path.isfile(p): return Response("linkify stub not found", 404)
     return send_file(p, mimetype="application/javascript")
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 # /i18n routes (UI + API)
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 @bp.route("/i18n_builder.json", methods=["GET"])
 def serve_i18n_builder_json():
     if not os.path.isfile(CONFIG_FILE):
@@ -568,7 +599,7 @@ def serve_i18n_modes_json():
         return jsonify({"error": f"not found: {MODES_FILE}"}), 404
     return send_from_directory(CONFIG_DIR, "i18n_modes.json", mimetype="application/json")
 
-# ---- UI (content-only via hub layout)
+# -- UI (content-only via layout)
 @bp.route("/")
 def ui():
     html = render_template_string(EDITOR_CONTENT, base_style=BASE_STYLE, css_inject=CSS_INJECT_SNIPPET, err=None)
@@ -583,9 +614,9 @@ def languages_page():
     html = render_template_string(LANG_CONTENT, base_style=BASE_STYLE, css_inject=CSS_INJECT_SNIPPET)
     return _render(html, title="I18N Builder — Taalbeheer")
 
-# ---- Load/Save
+# -- Load/Save
 @bp.route("/load", methods=["POST"])
-def load_file():
+def load_file_api():
     req = request.get_json(force=True, silent=True) or {}
     filename = safe_name(req.get("filename", ""))
     if not filename:
@@ -598,9 +629,9 @@ def load_file():
     meta, body = split_frontmatter(content)
     return jsonify({"filename": filename, "meta": meta, "body": body, "raw": content})
 
-# ---- Save + backups
+# -- Save + backups
 @bp.route("/save", methods=["POST"])
-def save_file():
+def save_file_api():
     req = request.get_json(force=True, silent=True) or {}
     filename = safe_name(req.get("filename", ""))
     meta = req.get("meta") or {}
@@ -622,7 +653,7 @@ def save_file():
         f.write(text)
     return jsonify({"status": "ok"})
 
-# ---- Snapshot
+# -- Snapshot
 @bp.route("/snapshot", methods=["POST"])
 def snapshot():
     req = request.get_json(force=True, silent=True) or {}
@@ -664,14 +695,14 @@ def restore_backup():
     shutil.copy2(bfull, full)
     return jsonify({"status": "ok"})
 
-# ---- Preview (sanitize)
+# -- Preview (sanitize)
 @bp.route("/preview", methods=["POST"])
 def preview():
     content = (request.get_json(force=True, silent=True) or {}).get("html", "")
     safe = sanitize_html(content)
     return jsonify({"safe_html": safe})
 
-# ---- Upload
+# -- Upload
 @bp.route("/upload", methods=["POST"])
 def upload():
     if "file" not in request.files:
@@ -690,7 +721,7 @@ def upload():
         content = ""
     return jsonify({"filename": name, "content": content})
 
-# ---- Publish HTML
+# -- Publish HTML
 @bp.route("/publish", methods=["POST"])
 def publish():
     req = request.get_json(force=True, silent=True) or {}
@@ -727,7 +758,6 @@ def publish():
     meta = meta or {}
     if "theme" not in meta:
         meta["theme"] = "dark"
-
     context = {"meta": meta, "title": meta.get("title") or "Document", "body": body_html, "inline_css": inline_css}
     html = render_template_to_html(template, context)
 
@@ -743,7 +773,7 @@ def publish():
         f.write(html)
     return jsonify({"status": "ok", "output_path": out_path})
 
-# ---- Export PDF
+# -- Export PDF
 @bp.route("/export_pdf", methods=["POST"])
 def export_pdf():
     req = request.get_json(force=True, silent=True) or {}
@@ -794,12 +824,11 @@ def export_pdf():
         return ("PDF export faalde: " + str(e), 500, {"Content-Type": "text/plain; charset=utf-8"})
     return send_file(io.BytesIO(pdf_bytes), mimetype="application/pdf", as_attachment=True, download_name="export.pdf")
 
-# ---- Test PDF
+# -- Test PDF
 @bp.route("/test_pdf", methods=["GET"])
 def test_pdf():
     download = (request.args.get("download", "").lower() in ("1", "true", "yes"))
     template = (request.args.get("template") or "page.html").strip()
-
     detected_path = detect_wkhtmltopdf_path()
     info = {
         "wkhtmltopdf_path": detected_path or "",
@@ -808,7 +837,6 @@ def test_pdf():
         "template": template,
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
-
     meta = {"title": "Test PDF", "lang": "nl", "theme": "dark"}
     sample_css = "h1{color:#4285f4;} .muted{color:#777; font-size:12px}"
     sample_body = f"""
@@ -834,7 +862,7 @@ def test_pdf():
         info["error"] = str(e)
     return jsonify(info)
 
-# ---- Template management
+# -- Template management
 @bp.route("/list_templates", methods=["GET"])
 def list_templates():
     ensure_default_templates()
@@ -849,7 +877,7 @@ def list_templates():
 def new_template():
     req = request.get_json(force=True, silent=True) or {}
     name = safe_name(req.get("name", "page.html"))
-    content = req.get("content", "{% extends 'base.html' %}\n{% block content %}\n{{ body|safe }}\n{% endblock %}\n")
+    content = req.get("content", "{% extends 'base.html' %}\n{% block content %}\n{{ body | safe }}\n{% endblock %}\n")
     if not name.endswith(".html"):
         name += ".html"
     path = os.path.join(TEMPLATES_DIR, name)
@@ -858,6 +886,124 @@ def new_template():
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
     return jsonify({"status": "ok"})
+
+# --- Vendor check (web) ---
+@bp.route("/_vendor_check", methods=["GET"])
+def vendor_check():
+    """
+    Controleer vendor-modules (Tiptap, TinyMCE, CodeMirror 6) en wkhtmltopdf.
+    Retourneert JSON met status, ok/warnings/errors.
+    """
+    # Config laden (zelfde files als door de editor gebruikt)
+    cfg = load_json(CONFIG_FILE)
+    modes = load_json(MODES_FILE)
+    if not isinstance(cfg, dict) or not isinstance(modes, dict):
+        return jsonify({"status": "ERROR", "message": "Kon config/modes niet laden"}), 500
+
+    def norm_base(p: str) -> str:
+        p = (p or "").strip().lstrip("/")
+        return os.path.join(ROOT_DIR, p.replace("/", os.sep))
+
+    results = []
+
+    def add(cat: str, name: str, path: str, ok: bool, msg: str = ""):
+        results.append({
+            "category": cat,
+            "name": name,
+            "path": path,
+            "exists": bool(ok),
+            "message": msg
+        })
+
+    # ---- Tiptap ----
+    ui = (cfg.get("ui") or {}).get("editors", {})
+    tiptap = (ui.get("tiptap") or {})
+    t_base = norm_base(tiptap.get("path") or "static/vendor/tiptap")
+    add("tiptap", "base-dir", t_base, os.path.isdir(t_base))
+    tiptap_required = [
+        ("core/index.js",          os.path.join(t_base, "core", "index.js")),
+        ("starter-kit/index.js",   os.path.join(t_base, "starter-kit", "index.js")),
+        ("ext-link/index.js",      os.path.join(t_base, "ext-link", "index.js")),
+        ("ext-image/index.js",     os.path.join(t_base, "ext-image", "index.js")),
+        ("ext-placeholder/index.js", os.path.join(t_base, "ext-placeholder", "index.js")),
+    ]
+    for label, p in tiptap_required:
+        ok = os.path.isfile(p)
+        add("tiptap", label, p, ok, "" if ok else "Ontbreekt: Tiptap module")
+
+    # ---- TinyMCE ----
+    tcfg = (ui.get("tinymce") or {})
+    m_base = norm_base(tcfg.get("path") or "static/vendor/tinymce")
+    add("tinymce", "base-dir", m_base, os.path.isdir(m_base))
+    m_core = os.path.join(m_base, "tinymce.min.js")
+    add("tinymce", "tinymce.min.js", m_core, os.path.isfile(m_core), "" if os.path.isfile(m_core) else "Ontbreekt: core")
+    m_skins = os.path.join(m_base, "skins")
+    m_plugins = os.path.join(m_base, "plugins")
+    add("tinymce", "skins/", m_skins, os.path.isdir(m_skins), "" if os.path.isdir(m_skins) else "Ontbreekt: skins-map")
+    add("tinymce", "plugins/", m_plugins, os.path.isdir(m_plugins), "" if os.path.isdir(m_plugins) else "Ontbreekt: plugins-map")
+
+    # ---- CodeMirror 6 ----
+    ccfg = (ui.get("codemirror") or {})
+    c_base = norm_base(ccfg.get("path") or "static/vendor/codemirror")
+    for rel in [os.path.join("view", "index.js"), os.path.join("state", "index.js")]:
+        p = os.path.join(c_base, rel)
+        add("codemirror", rel.replace("\\", "/"), p, os.path.isfile(p), "" if os.path.isfile(p) else "Ontbreekt: CM6 core module")
+
+    expected_langs = set(["html", "css", "json", "xml", "markdown"])
+    for mkey, mdef in (modes.get("modes") or {}).items():
+        if (mdef or {}).get("wysiwyg") == "codemirror":
+            syn = (mdef or {}).get("syntax")
+            if syn:
+                expected_langs.add(syn)
+
+    lang_map = {
+        "markdown": os.path.join(c_base, "lang-markdown", "index.js"),
+        "html":     os.path.join(c_base, "lang-html", "index.js"),
+        "css":      os.path.join(c_base, "lang-css", "index.js"),
+        "json":     os.path.join(c_base, "lang-json", "index.js"),
+        "xml":      os.path.join(c_base, "lang-xml", "index.js"),
+    }
+    for lang, p in lang_map.items():
+        if lang in expected_langs:
+            ok = os.path.isfile(p)
+            add("codemirror", f"lang-{lang}/index.js", p, ok, "" if ok else "Ontbreekt: CM6 language module")
+
+    # ---- wkhtmltopdf ----
+    wk = (cfg.get("wkhtmltopdf") or {}).get("portable_path") or ""
+    candidates = []
+    if wk:
+        candidates.append(norm_base(wk))
+    candidates.extend([
+        os.path.join(STATIC_DIR, "vendor", "wkhtmltox", "bin", "wkhtmltopdf.exe"),
+        os.path.join(STATIC_DIR, "vendor", "wkhtmltox", "bin", "wkhtmltopdf"),
+    ])
+    found = None
+    for c in candidates:
+        if os.path.isfile(c):
+            found = c
+            break
+    add("wkhtmltopdf", "binary", found or (candidates[0] if candidates else ""), bool(found),
+        "" if found else "Niet gevonden. Pas 'wkhtmltopdf.portable_path' aan of plaats binary in static/vendor/wkhtmltox/bin")
+
+    # ---- Samenvatting ----
+    missing = [r for r in results if not r["exists"]]
+    warnings = [r for r in results if (r["category"] == "tinymce" and r["name"] in ("skins/", "plugins/") and not r["exists"])]
+    errors = [r for r in missing if r not in warnings]
+    status = "OK"; code = 200
+    if errors and warnings:
+        status, code = "ERROR+WARN", 206
+    elif errors:
+        status, code = "ERROR", 206
+    elif warnings:
+        status, code = "WARN", 206
+
+    return jsonify({
+        "status": status,
+        "total_checks": len(results),
+        "errors": errors,
+        "warnings": warnings,
+        "ok": [r for r in results if r["exists"]],
+    }), code
 
 @bp.route("/delete_template", methods=["POST"])
 def delete_template():
@@ -871,7 +1017,7 @@ def delete_template():
     os.remove(path)
     return jsonify({"status": "ok"})
 
-# ---- Server-side ZIP export
+# -- Server-side ZIP export
 @bp.route("/export", methods=["POST"])
 def export_zip():
     req = request.get_json(force=True, silent=True) or {}
@@ -883,7 +1029,7 @@ def export_zip():
     mem.seek(0)
     return send_file(mem, mimetype="application/zip", as_attachment=True, download_name="i18n_export.zip")
 
-# ---- Live preview van een template (voor je thumbnail-index)
+# -- Live preview van een template (voor thumbnail-index)
 @bp.route("/preview_template")
 def preview_template():
     name = safe_name(request.args.get("name",""))
@@ -897,21 +1043,27 @@ def preview_template():
     })
     return html
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 # Tool registration
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 def register_tool(app):
-    app.register_blueprint(bp)       # /i18n/*
-    app.register_blueprint(shim_bp)  # /* (root-level shims)
+    app.register_blueprint(bp)      # /i18n/*
+    app.register_blueprint(shim_bp) # /* (root-level shims)
     current_app_logger = getattr(app, "logger", None)
     if current_app_logger:
-        current_app_logger.info("[i18n_builder] registered (hub-layout, content-only UI, css-inject, auto-backup, publish, pdf autodetect, test_pdf)")
-    print("[i18n_builder] registered (hub-layout, content-only UI, css-inject, auto-backup, publish, pdf autodetect, test_pdf)")
+        current_app_logger.info("[i18n_builder] registered (hybrid layout, css-inject, auto-backup, publish, pdf autodetect, test_pdf)")
+    print("[i18n_builder] registered (hybrid layout, css-inject, auto-backup, publish, pdf autodetect, test_pdf)")
 
 def register_web_routes(app):
     register_tool(app)
 
+# -------------------------------------------------------------------------------------------------
+# Standalone runner (hybride modus)
+# -------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
-    app = Flask(__name__)
+    # In Hub-modus wordt dit module geïmporteerd en roept master.register_tools()
+    # onze register_web_routes(app) aan. In standalone maken we zélf een app.
+    app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="/static")
     register_tool(app)
-    app.run("127.0.0.1", 5003, debug=True)
+    print("i18n_builder standalone op http://127.0.0.1:5004/i18n")
+    app.run("127.0.0.1", 5004, debug=True)
