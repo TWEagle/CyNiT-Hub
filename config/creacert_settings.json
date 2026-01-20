@@ -1,0 +1,15 @@
+{
+  "default_engine": "python",
+  "debug_default": true,
+
+  "openssl_bin": "openssl",
+  "openssl_conf": null,
+
+  "base_output_dir": "C:\\Users\\lemmenmf\\OneDrive - Vlaamse overheid - Office 365\\DCBaaS\\VOICA1\\Certificaten",
+  "rsa_default_bits": 4096,
+
+  "ecc_curve": "secp384r1",
+  "hash_algo": "sha384",
+
+  "pkcs12_cipher": "AES-256-CBC"
+}

@@ -1,0 +1,112 @@
+
+{
+  "health": {
+    "method": "GET",
+    "path": "/health",
+    "description": "Health check van de DCBaaS External API"
+  },
+
+  "application_add": {
+    "method": "POST",
+    "path": "/application/add",
+    "body_template": {
+      "name": "appadd.n",
+      "reason": "appadd.r",
+      "organization_code": "appadd.oc"
+    },
+    "description": "Voegt een nieuwe application toe"
+  },
+
+  "application_update": {
+    "method": "POST",
+    "path": "/application/update",
+    "body_template": {
+      "name": "appupdate.n",
+      "reason": "appupdate.r",
+      "organization_code": "appupdate.oc"
+    },
+    "description": "Update een bestaande application"
+  },
+
+  "application_delegate": {
+    "method": "POST",
+    "path": "/application/delegate",
+    "body_template": {
+      "name": "appdelegate.n",
+      "organization_code": "appdelegate.oc",
+      "duration": "appdelegate.dur"
+    },
+    "description": "Delegeert een application aan een organisatie"
+  },
+
+  "application_approve": {
+    "method": "POST",
+    "path": "/application/approve",
+    "body_template": {
+      "name": "appapprove.n",
+      "duration": "appapprove.dur"
+    },
+    "description": "Keur een application goed"
+  },
+
+  "application_delete": {
+    "method": "POST",
+    "path": "/application/delete",
+    "body_template": {
+      "name": "appdelete.n",
+      "organization_code": "appdelete.oc"
+    },
+    "description": "Verwijder een application"
+  },
+
+  "certificate_add": {
+    "method": "POST",
+    "path": "/certificate/add",
+    "body_template": {
+      "application_name": "certadd.n",
+      "certificate_template": "certadd.temp",
+      "contact_person": ["certadd.cp"],
+      "description": "certadd.desc",
+      "duration": "certadd.dur",
+      "organization_code": "certadd.oc",
+      "file": "certadd.cert"
+    },
+    "description": "Voegt een certificaat toe"
+  },
+
+  "certificate_revoke": {
+    "method": "POST",
+    "path": "/certificate/revoke",
+    "body_template": {
+      "application_name": "certrev.n",
+      "serial_number": "certrev.sn",
+      "description": "certrev.desc",
+      "organization_code": "certrev.oc",
+      "revoke_reason": "certrev.r"
+    },
+    "description": "Revoke een certificaat"
+  },
+
+  "certificate_renew": {
+    "method": "POST",
+    "path": "/certificate/renew",
+    "body_template": {
+      "application_name": "certrenew.n",
+      "serial_number": "certrenew.sn",
+      "duration": "certrenew.dur",
+      "organization_code": "certrenew.oc",
+      "file": "certrenew.cert"
+    },
+    "description": "Verleng een certificaat"
+  },
+
+  "certificate_search": {
+    "method": "POST",
+    "path": "/certificate/search",
+    "body_template": {
+      "application_name": "certsearch.n",
+      "organization_code": "certsearch.oc"
+    },
+    "description": "Zoek certificaten voor een application"
+  }
+}

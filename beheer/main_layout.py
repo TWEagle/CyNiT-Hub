@@ -127,7 +127,6 @@ def _build_theme_injected_css(cfg: Dict[str, Any]) -> Tuple[str, str, str]:
         "--border": "rgba(255,255,255,.10)",
         "--shadow": "0 12px 40px rgba(0,0,0,.55)",
         "--accent": "#35e6df",
-
         "--grad_top": "#08121a",
         "--grad_bottom": "#000",
         "--panel_bg": "rgba(10,15,18,.55)",
@@ -211,6 +210,7 @@ def render_page(*, title: str, content_html: str) -> str:
 
     css_href = url_for("static", filename="css/main.css")
     js_src = url_for("static", filename="js/main.js")
+    clicks_js_src = url_for("static", filename="js/click_logger.js")  # ✅ nieuw
 
     logo_src = str(hub.get("logo_src") or "/images/logo.png?v=1")
     favicon_ico = str(hub.get("favicon_ico") or "/images/logo.ico")
@@ -352,10 +352,13 @@ def render_page(*, title: str, content_html: str) -> str:
   </div>
 </footer>
 
-<!-- 1) Load main.js: deze beheert dropdowns + extra UX -->
+<!-- 1) Load main.js: dropdowns + UX -->
 <script src="%(js_src)s"></script>
 
-<!-- 2) Mini inline: alleen theme select redirect (geen dropdown code hier!) -->
+<!-- ✅ 2) Click logger: logt alle clicks naar /_log/click -->
+<script src="%(clicks_js_src)s"></script>
+
+<!-- 3) Theme select redirect -->
 <script>
 (function(){
   const sel = document.getElementById("themeSelect");
@@ -375,6 +378,7 @@ def render_page(*, title: str, content_html: str) -> str:
         "favicon_ico": favicon_ico,
         "css_href": css_href,
         "js_src": js_src,
+        "clicks_js_src": clicks_js_src,
         "theme_css": theme_css,
         "logo_src": logo_src,
         "body_classes": body_classes_str,
