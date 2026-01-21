@@ -1,0 +1,147 @@
+/* static/css/createcert.css */
+/* Alleen voor CreateCert pagina */
+
+.cc-wrap { margin-top: 14px; }
+
+.cc-section-title{
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.cc-label{
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.cc-form { margin: 0; }
+
+.cc-grid2{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 980px){
+  .cc-grid2{ grid-template-columns: 1fr; }
+}
+
+.cc-inp, .cc-ta, select.cc-inp{
+  width: 100%;
+  background: rgba(0,0,0,.65) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(255,255,255,.22) !important;
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  outline: none !important;
+}
+
+.cc-inp:focus, .cc-ta:focus{
+  border-color: rgba(0,247,0,.70) !important;
+  box-shadow: 0 0 0 2px rgba(0,247,0,.18) !important;
+}
+
+.cc-ta{
+  min-height: 140px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.cc-radio{
+  display:flex;
+  gap:14px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.cc-radio label{
+  display:inline-flex;
+  gap:8px;
+  align-items:center;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+}
+
+.cc-actions{
+  margin-top: 12px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+/* ===== Buttons: extra zichtbaar + groene border ===== */
+.cc-btn{
+  appearance: none;
+  border: 1px solid rgba(0,247,0,.85);
+  background: rgba(0,0,0,.35);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(0,0,0,.35);
+  transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+}
+
+.cc-btn:hover{
+  background: rgba(0,247,0,.10);
+  box-shadow: 0 0 0 2px rgba(0,247,0,.22), 0 14px 32px rgba(0,0,0,.45);
+  transform: translateY(-1px);
+}
+
+.cc-btn:active{
+  transform: translateY(0px);
+}
+
+.cc-btn-primary{
+  background: rgba(0,247,0,.12);
+  border-color: rgba(0,247,0,.95);
+}
+
+.cc-btn-mini{
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-weight: 900;
+}
+
+.cc-notice{
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.03);
+}
+.cc-ok{ border-color: rgba(0,247,0,.35); }
+.cc-err{ border-color: rgba(255,80,80,.35); }
+
+.cc-copyrow{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  margin: 8px 0 8px 0;
+}
+
+.cc-files{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.cc-file{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.03);
+}
+.cc-file-name{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+}
+.cc-file-actions a{
+  text-decoration:none;
+}

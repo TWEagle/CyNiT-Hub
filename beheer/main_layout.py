@@ -195,6 +195,7 @@ def _beheer_items() -> List[dict]:
         {"name": "Theme",        "icon": "🎨", "desc": "Theme configuratie", "href": "/beheer/theme"},
         {"name": "Config",       "icon": "🧾", "desc": "settings.json beheren", "href": "/beheer/config"},
         {"name": "Logs",         "icon": "📜", "desc": "Logs bekijken", "href": "/beheer/logs"},
+        {"name": "System",       "icon": "🧯", "desc": "Restart & cache", "href": "/beheer/system"},
     ]
 
 

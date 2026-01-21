@@ -1,15 +1,50 @@
 {
+  "root_base_dir": "C:\\\\Users\\\\lemmenmf\\\\OneDrive - Vlaamse overheid - Office 365\\\\DCBaaS\\\\VOICA1\\\\Certificaten",
   "default_engine": "python",
-  "debug_default": true,
+  "default_key_type": "RSA",
+  "default_key_size": 4096,
+
+  "ecc_curve": "secp384r1",
+  "hash_alg": "sha384",
 
   "openssl_bin": "openssl",
   "openssl_conf": null,
 
-  "base_output_dir": "C:\\Users\\lemmenmf\\OneDrive - Vlaamse overheid - Office 365\\DCBaaS\\VOICA1\\Certificaten",
-  "rsa_default_bits": 4096,
+  "pass_length": 24,
 
-  "ecc_curve": "secp384r1",
-  "hash_algo": "sha384",
+  "default_country": "BE",
+  "countries": [
+    { "code": "BE", "name": "Belgium" },
+    { "code": "BG", "name": "Bulgaria" },
+    { "code": "CZ", "name": "Czechia" },
+    { "code": "DK", "name": "Denmark" },
+    { "code": "DE", "name": "Germany" },
+    { "code": "EE", "name": "Estonia" },
+    { "code": "IE", "name": "Ireland" },
+    { "code": "GR", "name": "Greece" },
+    { "code": "ES", "name": "Spain" },
+    { "code": "FR", "name": "France" },
+    { "code": "HR", "name": "Croatia" },
+    { "code": "IT", "name": "Italy" },
+    { "code": "CY", "name": "Cyprus" },
+    { "code": "LV", "name": "Latvia" },
+    { "code": "LT", "name": "Lithuania" },
+    { "code": "LU", "name": "Luxembourg" },
+    { "code": "HU", "name": "Hungary" },
+    { "code": "MT", "name": "Malta" },
+    { "code": "NL", "name": "Netherlands" },
+    { "code": "AT", "name": "Austria" },
+    { "code": "PL", "name": "Poland" },
+    { "code": "PT", "name": "Portugal" },
+    { "code": "RO", "name": "Romania" },
+    { "code": "SI", "name": "Slovenia" },
+    { "code": "SK", "name": "Slovakia" },
+    { "code": "FI", "name": "Finland" },
+    { "code": "SE", "name": "Sweden" }
+  ],
 
-  "pkcs12_cipher": "AES-256-CBC"
+  "ui": {
+    "brand": "CreateCert",
+    "accent": "#00f700"
+  }
 }

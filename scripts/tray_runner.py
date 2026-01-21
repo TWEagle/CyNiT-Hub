@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import time
@@ -38,6 +39,10 @@ HUB_URL = "https://localhost:5000"  # pas aan indien jouw master op andere poort
 ICON_OK_PATH = PROJECT_DIR / "static" / "images" / "logo.png"
 ICON_ERR_PATH = PROJECT_DIR / "static" / "images" / "logo_crash.png"
 
+# Heartbeat file for beheer watchdog detection
+HEARTBEAT_FILE = RUNTIME_DIR / "watchdog_heartbeat.json"
+HEARTBEAT_INTERVAL_SEC = 5
+
 _proc = None
 _proc_lock = Lock()
 
@@ -57,6 +62,28 @@ def notify(title: str, message: str):
         toast(title, message)
     except Exception as e:
         log(f"[WARN] toast failed: {e}")
+
+
+# =========================
+# Heartbeat (watchdog status)
+# =========================
+def write_heartbeat(status: str, extra: dict | None = None):
+    """
+    Writes runtime/watchdog_heartbeat.json so beheer can detect if tray_runner is alive.
+    status: starting | running | crashed | stopped
+    """
+    try:
+        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts": time.time(),
+            "status": status,
+            "pid": os.getpid(),
+        }
+        if extra and isinstance(extra, dict):
+            payload.update(extra)
+        HEARTBEAT_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception as e:
+        log(f"[WARN] heartbeat write failed: {e}")
 
 
 # =========================
@@ -134,17 +161,20 @@ def on_open(icon, item):
 def on_ping(icon, item):
     log("CLICK: Ping")
     notify("CyNiT-Hub", "Ping OK (tray werkt)")
+    write_heartbeat("running", {"note": "manual ping"})
 
 
 def on_restart(icon, item):
     log("CLICK: Herstart")
     notify("CyNiT-Hub", "Herstart gevraagd")
+    write_heartbeat("starting", {"reason": "tray menu restart"})
     stop_master()  # watchdog herstart automatisch
 
 
 def on_quit(icon, item):
     log("CLICK: Afsluiten")
     notify("CyNiT-Hub", "Afsluiten")
+    write_heartbeat("stopped", {"reason": "tray quit"})
     stop_master()
     icon.stop()
     os._exit(0)
@@ -159,6 +189,8 @@ def run_watchdog(icon: Icon):
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     log("Tray runner gestart")
     notify("CyNiT-Hub", "Tray runner gestart")
+
+    write_heartbeat("starting", {"phase": "preflight"})
 
     # 1) Preflight: venv + deps
     cfg = PreflightConfig(
@@ -193,9 +225,11 @@ def run_watchdog(icon: Icon):
     try:
         venv_py = ensure_env_and_deps(cfg, REQUIRED_IMPORTS)
         log(f"Preflight OK: {venv_py}")
+        write_heartbeat("starting", {"phase": "preflight_ok"})
     except Exception as e:
         log(f"[FATAL] Preflight failed: {e}")
         notify("CyNiT-Hub", f"Preflight faalde: {e}")
+        write_heartbeat("crashed", {"phase": "preflight_failed", "error": str(e)})
         return
 
     # pythonw pad
@@ -209,18 +243,43 @@ def run_watchdog(icon: Icon):
         except Exception as e:
             log(f"[WARN] crash-icoon maken faalde: {e}")
 
+    # Helper thread: keep heartbeat fresh while master runs
+    hb_stop = {"stop": False}
+
+    def heartbeat_loop():
+        while not hb_stop["stop"]:
+            try:
+                write_heartbeat("running", {"master_running": True})
+            except Exception:
+                pass
+            # sleep in small chunks so stop reacts quickly
+            for _ in range(int(HEARTBEAT_INTERVAL_SEC * 10)):
+                if hb_stop["stop"]:
+                    break
+                time.sleep(0.1)
+
     # 3) run loop
     while True:
         try:
+            write_heartbeat("starting", {"phase": "starting_master"})
             log("Start master.py")
+
             with _proc_lock:
                 _proc = start_master(venv_pythonw)
+
+            # start heartbeat thread
+            hb_stop["stop"] = False
+            Thread(target=heartbeat_loop, daemon=True).start()
 
             icon.icon = safe_load_image(ICON_OK_PATH, fallback_icon())
             icon.title = "CyNiT-Hub draait"
             icon.visible = True
 
             rc = _proc.wait()
+
+            # master stopped
+            hb_stop["stop"] = True
+            write_heartbeat("starting", {"phase": "master_stopped", "returncode": rc})
             log(f"master.py gestopt (returncode={rc})")
 
             icon.icon = safe_load_image(ICON_ERR_PATH, fallback_icon())
@@ -230,8 +289,10 @@ def run_watchdog(icon: Icon):
             time.sleep(3)
 
         except Exception as e:
+            hb_stop["stop"] = True
             log(f"[ERROR] watchdog exception: {e}")
             notify("CyNiT-Hub", f"Tray error: {e}")
+            write_heartbeat("crashed", {"phase": "watchdog_exception", "error": str(e)})
             time.sleep(3)
 
 
