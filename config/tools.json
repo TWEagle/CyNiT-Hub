@@ -113,6 +113,22 @@
       "hidden": false
     },
     {
+      "id": "createcert",
+      "name": "CreateCert (Key + CSR)",
+      "script": "createcert.py",
+      "web_path": "/createcert",
+      "icon_web": "🧾",
+      "icon": "🧾",
+      "description": "Genereer RSA/ECC private key + CSR (SHA-384) met verplichte subject velden en optionele SANs. Output: YYYY/MM/DD + copy CSR/DER base64.",
+      "accent": "#35e6df",
+      "accent_mode": "ring",
+      "accent_width": 28,
+      "ring_width": 10,
+      "ring_glow": 28,
+      "enabled": true,
+      "hidden": false
+    },
+    {
       "id": "jwt_ui",
       "name": "JWT Generator",
       "script": "jwt_ui.py",
@@ -157,23 +173,7 @@
       "accent_width": 28,
       "ring_width": 10,
       "ring_glow": 28,
-      "enabled": true,
-      "hidden": false
-    },
-    {
-      "id": "createcert",
-      "name": "CreateCert (Key + CSR)",
-      "script": "createcert.py",
-      "web_path": "/createcert",
-      "icon_web": "🧾",
-      "icon": "🧾",
-      "description": "Genereer RSA/ECC private key + CSR (SHA-384) met verplichte subject velden en optionele SANs. Output: YYYY/MM/DD + copy CSR/DER base64.",
-      "accent": "#35e6df",
-      "accent_mode": "ring",
-      "accent_width": 28,
-      "ring_width": 10,
-      "ring_glow": 28,
-      "enabled": true,
+      "enabled": false,
       "hidden": false
     }
   ]

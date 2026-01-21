@@ -43,6 +43,9 @@ ICON_ERR_PATH = PROJECT_DIR / "static" / "images" / "logo_crash.png"
 HEARTBEAT_FILE = RUNTIME_DIR / "watchdog_heartbeat.json"
 HEARTBEAT_INTERVAL_SEC = 5
 
+# Tray uptime
+TRAY_STARTED_TS = time.time()
+
 _proc = None
 _proc_lock = Lock()
 
@@ -67,6 +70,13 @@ def notify(title: str, message: str):
 # =========================
 # Heartbeat (watchdog status)
 # =========================
+def _fmt_uptime(seconds: int) -> str:
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
 def write_heartbeat(status: str, extra: dict | None = None):
     """
     Writes runtime/watchdog_heartbeat.json so beheer can detect if tray_runner is alive.
@@ -74,16 +84,29 @@ def write_heartbeat(status: str, extra: dict | None = None):
     """
     try:
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        uptime_sec = int(time.time() - TRAY_STARTED_TS)
+
         payload = {
             "ts": time.time(),
             "status": status,
             "pid": os.getpid(),
+            "uptime_sec": uptime_sec,
         }
         if extra and isinstance(extra, dict):
             payload.update(extra)
+
         HEARTBEAT_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     except Exception as e:
         log(f"[WARN] heartbeat write failed: {e}")
+
+
+def tray_uptime_text() -> str:
+    """
+    Dynamic text in right-click menu.
+    pystray supports callables for MenuItem text.
+    """
+    up = int(time.time() - TRAY_STARTED_TS)
+    return f"Uptime tray: {_fmt_uptime(up)}"
 
 
 # =========================
@@ -202,7 +225,6 @@ def run_watchdog(icon: Icon):
         stamp_file=STAMP_FILE,
     )
 
-    # import-check (snel). Als er iets mist -> full install all.in
     REQUIRED_IMPORTS = {
         # hub
         "flask": "flask",
@@ -217,7 +239,7 @@ def run_watchdog(icon: Icon):
         "pillow": "PIL",
         "pystray": "pystray",
         "win11toast": "win11toast",
-        # docs (alleen als je docs.in in all.in hebt)
+        # docs
         "reportlab": "reportlab",
         "pdfkit": "pdfkit",
     }
@@ -232,7 +254,6 @@ def run_watchdog(icon: Icon):
         write_heartbeat("crashed", {"phase": "preflight_failed", "error": str(e)})
         return
 
-    # pythonw pad
     venv_pythonw = (VENV_DIR / "Scripts" / "pythonw.exe") if os.name == "nt" else venv_py
 
     # 2) crash icoon genereren indien nodig
@@ -243,15 +264,11 @@ def run_watchdog(icon: Icon):
         except Exception as e:
             log(f"[WARN] crash-icoon maken faalde: {e}")
 
-    # Helper thread: keep heartbeat fresh while master runs
     hb_stop = {"stop": False}
 
     def heartbeat_loop():
         while not hb_stop["stop"]:
-            try:
-                write_heartbeat("running", {"master_running": True})
-            except Exception:
-                pass
+            write_heartbeat("running", {"master_running": True})
             # sleep in small chunks so stop reacts quickly
             for _ in range(int(HEARTBEAT_INTERVAL_SEC * 10)):
                 if hb_stop["stop"]:
@@ -267,7 +284,6 @@ def run_watchdog(icon: Icon):
             with _proc_lock:
                 _proc = start_master(venv_pythonw)
 
-            # start heartbeat thread
             hb_stop["stop"] = False
             Thread(target=heartbeat_loop, daemon=True).start()
 
@@ -277,7 +293,6 @@ def run_watchdog(icon: Icon):
 
             rc = _proc.wait()
 
-            # master stopped
             hb_stop["stop"] = True
             write_heartbeat("starting", {"phase": "master_stopped", "returncode": rc})
             log(f"master.py gestopt (returncode={rc})")
@@ -305,7 +320,10 @@ def main():
 
     image_ok = safe_load_image(ICON_OK_PATH, fallback_icon())
 
+    # Uptime wordt getoond in right-click menu via callable text.
     menu = Menu(
+        MenuItem(tray_uptime_text, None, enabled=False),  # <-- uptime regel
+        Menu.SEPARATOR,
         MenuItem("Open Hub", on_open, default=True),
         MenuItem("Ping", on_ping),
         MenuItem("Herstart CyNiT-Hub", on_restart),

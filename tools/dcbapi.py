@@ -3,45 +3,40 @@
 """
 DCBaaS API Tool – Hub-stijl (Optie B) + standalone
 
-- Eén omgevingsselectie (Prod/T&I) die zowel OP (token) als API base in sync zet
-- OP bases:
-    Prod: https://authenticatie.vlaanderen.be/op
-    T&I : https://authenticatie-ti.vlaanderen.be/op
-- API bases:
-    Prod: https://extapi.dcb.vlaanderen.be
-    T&I : https://extapi.dcb-ti.vlaanderen.be
-- Top-toolbar: Omgeving, JWK + Vault, Genereer token (+glow status), Health(+badge +glow), Tokenstatus(+verkeerslicht), Scopes
-- Token via client_credentials; token + scopes in sessie + op disk (dcbapi/session_<id>/)
-- Dynamische API-calls o.b.v. config/dcbapi_endpoints.json
-  (placeholders: .n/.oc/.sn/.temp->text, .r/.desc->textarea, .dur->number, .cp->list, .cert->file→Base64)
-- Endpoints-editor (GET/POST /dcbapi/endpoints.json)
-- Warning-vrije JS-regexen; trailing slash overal; standalone poort 5010
+Afgestemd op de perfect werkende token2dcb-flow:
+- Eén radiogroep (Prod/T&I/Dev) zet zowel OP (token) als API (health/calls).
+- Dev gebruikt TI-OP en Dev-API.
+- Token via client_credentials; token + scopes in sessie en opgeslagen op disk (dcbapi/session_<id>/).
+- Health-check is PUBLIEK (GEEN Authorization) en toont glowy-status tabel (Backend/Database/ES/FWP/…).
+- Scopes-overzicht verschijnt direct onder de token (glowy dot-tabel) + tooltip blijft.
+- Endpoints-editor en dynamische request-UI blijven behouden.
 """
-
 from __future__ import annotations
 import os, json, time, uuid, base64, pathlib
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from flask import Flask, request, abort, Response, jsonify
 
-# ---------------- In-memory sessies ----------------
+# ---------- Sessies ----------
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
-# ---------------- OP / API settings --------------
+# ---------- OP / API settings (in lijn met token2dcb) ----------
 OP_BASES = {
     "prod": "https://authenticatie.vlaanderen.be/op",
     "ti":   "https://authenticatie-ti.vlaanderen.be/op",
+    "dev":  "https://authenticatie-ti.vlaanderen.be/op",   # Dev gebruikt TI-OP
 }
 API_BASES = {
     "prod": "https://extapi.dcb.vlaanderen.be",
-    "ti":   "https://extapi.dcb-ti.vlaanderen.be",  # <-- gecorrigeerd
+    "ti":   "https://extapi.dcb-ti.vlaanderen.be",
+    "dev":  "https://extapi.dcb-dev.vlaanderen.be",
 }
 TOKEN_SUFFIX = "/v1/token"
 
-# ---------------- Configpaden ----------------------
-CONFIG_DIR = os.environ.get("CONFIG_DIR", "config")
-DATA_DIR = os.environ.get("DCBAPI_DATA_DIR", "dcbapi")
-SCOPES_FILE = os.path.join(CONFIG_DIR, "token2dcb_scopes.json")
-VAULT_FILE = os.path.join(CONFIG_DIR, "token2dcb_vault.json")
+# ---------- Configpaden ----------
+CONFIG_DIR     = os.environ.get("CONFIG_DIR", "config")
+DATA_DIR       = os.environ.get("DCBAPI_DATA_DIR", "dcbapi")
+SCOPES_FILE    = os.path.join(CONFIG_DIR, "token2dcb_scopes.json")
+VAULT_FILE     = os.path.join(CONFIG_DIR, "token2dcb_vault.json")
 ENDPOINTS_FILE = os.path.join(CONFIG_DIR, "dcbapi_endpoints.json")
 
 # Altijd toe te voegen DCBaaS scopes
@@ -56,7 +51,7 @@ ALWAYS_SCOPES = {
     "vo_info",
 }
 
-# ---------------- Helpers: bestand & config --------
+# ---------- Helpers: bestanden/config ----------
 def _ensure_dir(p: str) -> None:
     pathlib.Path(p).mkdir(parents=True, exist_ok=True)
 
@@ -86,14 +81,14 @@ def _load_json_object(path: str, default: dict) -> dict:
 
 def _load_scope_mapping() -> Dict[str, str]:
     default = {
-        "dvl_dcbaas_app_application_admin": "DCBaaS Beheer Toepassingen",
-        "dvl_dcbaas_app_certificate_admin": "DCBaaS Beheer Certificaten",
-        "dvl_dcbaas_app_config_admin": "DCBaaS Beheer Configuratie",
-        "dvl_dcbaas_app_helpdesk": "DCBaaS Beheer Helpdesk",
-        "dvl_dcbaas_info": "DCBaaS Informatie",
-        "dvl_dcbaas_org_certificate_admin_organization": "DCBaaS Certificaatbeheerder Organisatie",
-        "dvl_dcbaas_org_workflow_operator": "DCBaaS Workflowbeheerder",
-        "vo_info": "VO Info",
+        "dvl_dcbaas_app_application_admin":            "DCBaaS Beheer Toepassingen",
+        "dvl_dcbaas_app_certificate_admin":            "DCBaaS Beheer Certificaten",
+        "dvl_dcbaas_app_config_admin":                 "DCBaaS Beheer Configuratie",
+        "dvl_dcbaas_app_helpdesk":                     "DCBaaS Beheer Helpdesk",
+        "dvl_dcbaas_info":                             "DCBaaS Informatie",
+        "dvl_dcbaas_org_certificate_admin_organization":"DCBaaS Certificaatbeheerder Organisatie",
+        "dvl_dcbaas_org_workflow_operator":            "DCBaaS Workflowbeheerder",
+        "vo_info":                                     "VO Info",
     }
     return _load_json_object(SCOPES_FILE, default)
 
@@ -116,7 +111,7 @@ def _save_endpoints(mapping: Dict[str, dict]) -> None:
     _ensure_config_dir()
     _save_file(ENDPOINTS_FILE, json.dumps(mapping, ensure_ascii=False, indent=2))
 
-# ---------------- JWK / JWT helpers ----------------
+# ---------- JWK / JWT helpers ----------
 try:
     import jwt  # PyJWT
     from jwt.algorithms import RSAAlgorithm, ECAlgorithm
@@ -155,9 +150,101 @@ def _key_from_jwk(jwk_json: str) -> Tuple[Any, str, dict]:
         raise ValueError(f"Unsupported kty: {kty}")
     return key, alg, jwk_obj
 
-# ---------------- UI rendering ---------------------
+# ---------- Health helpers (uit token2dcb) ----------
+def _status_to_bool(val: Any) -> Optional[bool]:
+    """Converteer gangbare health-waarden naar booleans; None als onbekend."""
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    s = str(val).strip().lower()
+    ok_vals = {"up", "ok", "healthy", "available", "true", "1", "pass", "passing", "green", "ready"}
+    ko_vals = {"down", "error", "unhealthy", "unavailable", "false", "0", "fail", "failing", "red", "notready", "ko"}
+    if s in ok_vals:
+        return True
+    if s in ko_vals:
+        return False
+    return None
+
+def _flatten_health(obj: Any, prefix: str = "") -> List[Tuple[str, Any]]:
+    """Maak 'dotted' keys met values voor tabelweergave."""
+    out: List[Tuple[str, Any]] = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            key = f"{prefix}.{k}" if prefix else str(k)
+            out.extend(_flatten_health(v, key))
+    elif isinstance(obj, list):
+        for idx, v in enumerate(obj):
+            key = f"{prefix}[{idx}]"
+            out.extend(_flatten_health(v, key))
+    else:
+        out.append((prefix or "status", obj))
+    return out
+
+def _prettify_health_key(key: str) -> str:
+    if key.endswith(".status"):
+        key = key[: -len(".status")]
+    for pref in ("response.", "data."):
+        if key.startswith(pref):
+            key = key[len(pref):]
+            break
+    seg = key.split(".")[-1] if "." in key else key
+    seg_norm = seg.replace("_", " ").replace("-", " ").strip()
+    lower = seg_norm.lower()
+    if lower == "es":
+        return "ES"
+    if lower == "fwp":
+        return "FWP"
+    if len(seg_norm) <= 3 and seg_norm.isalpha():
+        return seg_norm.upper()
+    return seg_norm[:1].upper() + seg_norm[1:]
+
+def _render_health_table(health_json: Any) -> str:
+    rows: List[str] = []
+    flat = _flatten_health(health_json)
+    flat.sort(key=lambda kv: (0 if kv[0].endswith("status") else 1, kv[0]))
+    for key, val in flat:
+        b = _status_to_bool(val)
+        label = _prettify_health_key(key)
+        if b is True:
+            badge = "<span class='tdcb-dot tdcb-dot--ok'></span>"
+            val_html = "<span class='muted'>OK</span>"
+        elif b is False:
+            badge = "<span class='tdcb-dot tdcb-dot--nok'></span>"
+            val_html = "<span class='muted'>NOK</span>"
+        else:
+            badge = "<span class='tdcb-dot tdcb-dot--unk'></span>"
+            val_html = f"<code>{str(val)}</code>"
+        rows.append(
+            f"<tr><td>{label}</td><td style='width:80px;text-align:center'>{badge}</td><td>{val_html}</td></tr>"
+        )
+    if not rows:
+        rows.append("<tr><td colspan='3'><em>Geen health-gegevens</em></td></tr>")
+    return "<table><tr><th>Onderdeel</th><th>OK</th><th>Waarde</th></tr>" + "".join(rows) + "</table>"
+
+# ---------- Scopes rendering ----------
+def _render_scope_table(scopes_space_sep: str, mapping: Dict[str, str]) -> str:
+    scopes = set(s for s in (scopes_space_sep or "").split() if s.strip())
+    rows = []
+    for key, label in mapping.items():
+        present = key in scopes
+        dot = "<span class='tdcb-dot tdcb-dot--ok'></span>" if present else "<span class='tdcb-dot tdcb-dot--nok'></span>"
+        rows.append(f"<tr><td>{label}</td><td style='width:80px;text-align:center'>{dot}</td></tr>")
+    extra = [s for s in sorted(scopes) if s not in mapping]
+    extra_rows = ""
+    if extra:
+        extra_rows = (
+            "<tr><th colspan='2'>Overige scopes (niet in mapping)</th></tr>"
+            + "".join(
+                "<tr><td><code>{}</code></td><td style='width:80px;text-align:center'><span class='tdcb-dot tdcb-dot--ok'></span></td></tr>".format(s)
+                for s in extra
+            )
+        )
+    return "<table><tr><th>Betekenis</th><th>Aanwezig</th></tr>" + "".join(rows) + extra_rows + "</table>"
+
+# ---------- UI rendering ----------
 def _page(title: str, body_html: str) -> str:
-    """Render via beheer.main_layout als die bestaat; anders minimal fallback."""
+    """Render via beheer.main_layout als beschikbaar; anders minimal fallback."""
     try:
         from beheer.main_layout import render_page  # type: ignore
         return render_page(title=title, content_html=body_html)
@@ -168,7 +255,6 @@ def _page(title: str, body_html: str) -> str:
             "</head><body>" + body_html + "</body></html>"
         )
 
-# ---------------- Pagina (Hub-stijl, neutrale markup) ----------------
 def _form(
     error: Optional[str] = None,
     info: Optional[str] = None,
@@ -177,30 +263,54 @@ def _form(
     token_url: Optional[str] = None,
     session_id: Optional[str] = None,
     scopes_embed: Optional[str] = None,
+    scope_table_html: Optional[str] = None,
+    health_table_html: Optional[str] = None,
 ) -> str:
     token_url_block = f"<div class='muted'>Token URL: <code>{token_url}</code></div>" if token_url else ""
-    token_text = access_token or "-"
+    token_text   = access_token or "-"
     copy_disabled = "disabled" if not access_token else ""
-    run_disabled = "disabled" if not access_token else ""
-
-    download_html = f'/dcbapi/download/{session_id}/access_tokenDownload token</a>' if (session_id and access_token) else ""
-
+    run_disabled  = "disabled" if not access_token else ""
+    download_html = f"<a class='btn' href='/dcbapi/download/{session_id}/access_token' download='access_token.txt'>Download token</a>" if (session_id and access_token) else ""
     result_block = (
         "<details open><summary>Resultaat JSON</summary><pre style='overflow:auto'>__RESULT_JSON__</pre></details>"
-        if result_json else "<details><summary>Resultaat JSON</summary><div class='muted'>Nog geen resultaat</div></details>"
+        if result_json else
+        "<details><summary>Resultaat JSON</summary><div class='muted'>Nog geen resultaat</div></details>"
     )
 
-    # Pagina‑body (Hub-stijl, met echte <form>)
-    body = r"""
-<div class="dcbapi">
-  __ERROR_BLOCK____INFO_BLOCK__
+    # Statische styles (met glowy dots) – geen f-string om { } veilig te houden
+    styles = """
+<style>
+  body{background:#000;color:#e8f2f2}
+  .muted{color:rgba(255,255,255,.75)}
+  .btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b1016;color:#e7f3f3;font-weight:800;cursor:pointer}
+  .btn[disabled]{opacity:.6;cursor:not-allowed}
+  .in{padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b1016;color:#e7f3f3;min-width:120px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);font-weight:800}
+  .hidden{display:none !important}
+  table{border-collapse:collapse;width:100%;margin-top:8px}
+  th,td{border:1px solid rgba(255,255,255,.18);padding:8px 10px}
+  th{text-align:left;background:rgba(255,255,255,.06)}
+  .error{margin:8px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,80,80,.35);background:rgba(255,80,80,.06)}
+  /* glowy dots */
+  .tdcb-dot{display:inline-block;width:16px;height:16px;border-radius:50%;margin:auto;box-shadow:0 0 6px rgba(0,0,0,.4),2px 2px 4px rgba(0,0,0,.6)}
+  .tdcb-dot--ok{background:#24d65a;box-shadow:0 0 6px rgba(36,214,90,.7),0 0 12px rgba(36,214,90,.6),2px 2px 4px rgba(0,0,0,.6)}
+  .tdcb-dot--nok{background:#ff3030;box-shadow:0 0 6px rgba(255,50,50,.7),0 0 12px rgba(255,50,50,.6),2px 2px 4px rgba(0,0,0,.6)}
+  .tdcb-dot--unk{background:#bbb;box-shadow:0 0 6px rgba(200,200,200,.5),2px 2px 4px rgba(0,0,0,.5)}
+</style>
+"""
 
-  <!-- Top toolbar -->
+    # Groot HTML/JS-blok met placeholders (GEEN f-string!)
+    body = """
+{STYLES}
+<div class="dcbapi" style="padding:10px;border-radius:12px">
+  {ERROR_BLOCK}{INFO_BLOCK}
+
+  <!-- Top toolbar / Token -->
   <section>
-    /dcbapi/token/generate
+    <form id="tokenForm" method="post" action="/dcbapi/token/generate" enctype="multipart/form-data">
       <input type="hidden" name="session_id" id="session_id" value="__SESSION_ID__">
-
       <div class="toolbar" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;position:relative">
+
         <!-- ÉÉN OMGEVINGSSELECTIE -->
         <div style="display:flex;gap:10px;align-items:center;">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
@@ -209,8 +319,11 @@ def _form(
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
             <input type="radio" name="env_radio" value="ti"> T&amp;I
           </label>
-          <!-- Hidden OP/API base (worden via env geset in JS) -->
-          <input type="hidden" id="op_base"  name="op_base"  value="">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="radio" name="env_radio" value="dev"> Dev
+          </label>
+          <!-- Hidden OP/API base voor token + health -->
+          <input type="hidden" id="op_base" name="op_base" value="">
           <input type="hidden" id="api_base" name="api_base" value="">
           <span id="envBadge" class="pill" style="margin-left:6px;">Env: Prod</span>
         </div>
@@ -235,39 +348,36 @@ def _form(
         <!-- Genereer token -->
         <button id="genTokenBtn" class="btn" type="submit">Genereer token</button>
 
-        <!-- Health (button + badge) -->
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button id="healthBtn" class="btn" type="button" title="GET /health">Health</button>
-          <span id="healthBadge" class="pill" style="display:inline-flex;align-items:center;gap:6px;">
-            <span id="healthDot" style="width:10px;height:10px;border-radius:50%;background:#666;box-shadow:0 0 6px #333;"></span>
-            <span id="healthLabel">Onbekend</span>
-          </span>
-        </div>
+        <!-- Health (publiek) via apart form) -->
+        <form id="dcbapi-health-form" method="post" action="/dcbapi/health" style="display:inline">
+          <input type="hidden" id="op_base_hlt" name="op_base" value="">
+          <input type="hidden" id="api_base_hlt" name="api_base" value="">
+          <button id="healthBtn" class="btn" type="submit" formnovalidate title="Publieke GET /health">Health</button>
+        </form>
 
         <!-- Tokenstatus + scopes -->
         <div id="tokenStatus" style="display:flex;gap:8px;align-items:center;position:relative">
           <span class="pill" id="accessTokenText">__ACCESS_TOKEN__</span>
-
-          <!-- Verkeerslicht -->
           <span id="tokenLight" class="pill" style="display:inline-flex;align-items:center;gap:6px;">
             <span id="tokenDot" style="width:10px;height:10px;border-radius:50%;background:#666;box-shadow:0 0 6px #333;"></span>
             <span id="tokenLabel">Geen token</span>
           </span>
-
           <button id="copyTokenBtn" class="btn" type="button" __COPY_DISABLED__>Kopieer</button>
           <button class="btn" type="button" id="toggleTokenBtn" __COPY_DISABLED__>Toon token</button>
           __DOWNLOAD_HTML__
 
-          <!-- Scopes -->
+          <!-- Scopes: knop + tooltip -->
           <button id='scopeTooltipBtn' class='btn' type='button' title='Toon scopes'>Scopes</button>
           <div id='scopeTooltipPanel' class='hidden' role='dialog' aria-label='Scopes in token'
-               style='position:absolute; right:0; top:100%; min-width:320px; max-width:520px; z-index:100; display:none;
-                      background:rgba(0,0,0,0.9); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:10px;'>
+               style='position:absolute; right:0; top:100%; min-width:320px; max-width:520px; z-index:100;
+                      display:none; background:rgba(0,0,0,0.9); border:1px solid rgba(255,255,255,.14);
+                      border-radius:10px; padding:10px;'>
             <div id='scopeTooltipContent' style='max-height:340px; overflow:auto;'></div>
           </div>
         </div>
       </div>
 
+      <!-- Audience/Issuer -->
       <div style="display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap;">
         <div style="display:flex;gap:6px;align-items:center;">
           <label for="aud_kid" class="muted">Audience (kid)</label>
@@ -285,6 +395,12 @@ def _form(
     </form>
   </section>
 
+  <!-- Scopes-tabel direct onder token -->
+  {SCOPES_TOP}
+
+  <!-- Health-resultaat (publiek) -->
+  {HEALTH_TOP}
+
   <!-- Result JSON -->
   <section style="margin-top:12px;">
     __RESULT_BLOCK__
@@ -293,13 +409,13 @@ def _form(
   <!-- API-calls -->
   <section style="margin-top:16px;">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-      <!-- API base wordt automatisch gezet door de env keuze; zichtbaar read-only -->
+      <!-- API base (readonly) -->
       <div style="display:flex;gap:6px;align-items:center;min-width:320px;">
         <label for="api_base_visible" class="muted">API base</label>
         <input class="in" id="api_base_visible" type="text" readonly title="Wordt automatisch door 'Omgeving' gezet">
       </div>
 
-      <!-- Mooie select met caret -->
+      <!-- Operatie-select -->
       <div style="display:flex;gap:6px;align-items:center;position:relative;">
         <label for="op_select" class="muted">Operatie</label>
         <div class="select-wrap" style="position:relative;display:inline-block;">
@@ -326,20 +442,16 @@ def _form(
         <div class="lbl">Pad</div>
         <div><input class="in" id="op_path" type="text" value="/health"></div>
       </div>
-
       <div id="dynForm" style="display:grid;grid-template-columns:220px 1fr;gap:10px;align-items:center;margin-top:10px;">
         <!-- dynamische velden -->
       </div>
-
       <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;">
         <button class="btn" id="toggleRawBtn" type="button">Toon Raw JSON</button>
         <button id="runBtn" class="btn" type="button" __RUN_DISABLED__>▶️ Uitvoeren</button>
         <button id="clearRespBtn" class="btn" type="button">Wissen</button>
-        /dcbapi/endpoints.jsonOpen endpoints.json</a>
+        <a class="btn" href="/dcbapi/endpoints.json" target="_blank" rel="noopener">Open endpoints.json</a>
       </div>
-
       <textarea class="in hidden" id="op_body" rows="10" placeholder='{"voorbeeld":"waarde"}'></textarea>
-
       <div id="respPanel" style="margin-top:10px;"><pre id="respText">(geen response)</pre></div>
     </div>
   </section>
@@ -351,7 +463,7 @@ def _form(
       <div style="display:flex;gap:8px;align-items:center;margin:6px 0;">
         <button class="btn" id="loadEndpointsBtn" type="button">Herladen</button>
         <button class="btn" id="saveEndpointsBtn" type="button">Opslaan</button>
-        /dcbapi/endpoints.jsonOpen JSON</a>
+        <a class="btn" href="/dcbapi/endpoints.json" target="_blank" rel="noopener">Open JSON</a>
       </div>
       <textarea id="endpointsEditor" class="in" rows="16"></textarea>
     </details>
@@ -370,10 +482,10 @@ def _form(
   // Helpers
   function setProgress(id, show, pct){
     const wrap = document.getElementById(id);
-    const bar  = wrap?.querySelector('div');
-    if (!wrap || !bar) return;
+    const bar = wrap?.querySelector('div');
+    if(!wrap || !bar) return;
     wrap.classList.toggle('hidden', !show);
-    if (typeof pct === 'number') bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if(typeof pct === 'number') bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
   }
   function log(s){
     const lb = document.getElementById('logBox');
@@ -381,47 +493,39 @@ def _form(
     lb.textContent += `[${ts}] ${s}\n`;
     lb.scrollTop = lb.scrollHeight;
   }
-  // Glow helper (statuskleur in knop-tekst)
-  function setBtnGlow(btnId, status){ // status: 'ok' | 'ko' | 'idle'
+  function setBtnGlow(btnId, status){ // 'ok' | 'ko' | 'idle'
     const el = document.getElementById(btnId);
-    if (!el) return;
-    if (status === 'ok'){
-      el.style.color = '#27d89d';
-      el.style.textShadow = '0 0 8px rgba(39,216,157,.95)';
-    } else if (status === 'ko'){
-      el.style.color = '#ff5566';
-      el.style.textShadow = '0 0 8px rgba(255,85,102,.9)';
-    } else {
-      el.style.color = '';
-      el.style.textShadow = '';
-    }
+    if(!el) return;
+    if(status === 'ok'){ el.style.color = '#27d89d'; el.style.textShadow = '0 0 8px rgba(39,216,157,.95)'; }
+    else if(status === 'ko'){ el.style.color = '#ff5566'; el.style.textShadow = '0 0 8px rgba(255,85,102,.9)'; }
+    else { el.style.color = ''; el.style.textShadow = ''; }
   }
 
-  // ÉÉN OMGEVING: OP & API in sync + badge
+  // ÉÉN omgeving: OP & API in sync + badge
   function applyEnv(env){
-    const OP_PROD  = "https://authenticatie.vlaanderen.be/op";
-    const OP_TI    = "https://authenticatie-ti.vlaanderen.be/op";
-    const API_PROD = "https://extapi.dcb.vlaanderen.be";
-    const API_TI   = "https://extapi.dcb-ti.vlaanderen.be";
-
-    const op  = env === 'prod' ? OP_PROD  : OP_TI;
-    const api = env === 'prod' ? API_PROD : API_TI;
-
-    const opEl   = document.getElementById('op_base');
-    const apiEl  = document.getElementById('api_base');
-    const apiVis = document.getElementById('api_base_visible');
-    const badge  = document.getElementById('envBadge');
-
-    if (opEl)  opEl.value  = op;
-    if (apiEl) apiEl.value = api;
-    if (apiVis) apiVis.value = api;
-    if (badge)  badge.textContent = 'Env: ' + (env === 'prod' ? 'Prod' : 'T&I');
-
-    // Reset glows op omgeving switch
+    const OP_PROD  = "__OP_PROD__";
+    const OP_TI    = "__OP_TI__";
+    const OP_DEV   = "__OP_DEV__";
+    const API_PROD = "__API_PROD__";
+    const API_TI   = "__API_TI__";
+    const API_DEV  = "__API_DEV__";
+    const op  = (env === 'prod') ? OP_PROD : (env === 'ti' ? OP_TI : OP_DEV);
+    const api = (env === 'prod') ? API_PROD : (env === 'ti' ? API_TI : API_DEV);
+    const opEl  = document.getElementById('op_base');
+    const apiEl = document.getElementById('api_base');
+    const apiVis= document.getElementById('api_base_visible');
+    const badge = document.getElementById('envBadge');
+    const opHlt = document.getElementById('op_base_hlt');
+    const apiHlt= document.getElementById('api_base_hlt');
+    if(opEl)  opEl.value  = op;
+    if(apiEl) apiEl.value = api;
+    if(apiVis) apiVis.value = api;
+    if(opHlt) opHlt.value = op;
+    if(apiHlt) apiHlt.value = api;
+    if(badge) badge.textContent = 'Env: ' + (env === 'prod' ? 'Prod' : (env === 'ti' ? 'T&I' : 'Dev'));
     setBtnGlow('healthBtn', 'idle');
     setBtnGlow('genTokenBtn', 'idle');
   }
-  // init env op basis van radio default (prod)
   applyEnv('prod');
   document.querySelectorAll('input[name="env_radio"]').forEach(r=>{
     r.addEventListener('change', ev => applyEnv(ev.target.value));
@@ -440,15 +544,15 @@ def _form(
 
   // Upload JWK -> aud/issuer
   const jwkInput = document.getElementById('private_jwk');
-  const audKid   = document.getElementById('aud_kid');
+  const audKid = document.getElementById('aud_kid');
   jwkInput?.addEventListener('change', ()=>{
     const f = jwkInput.files && jwkInput.files[0]; if(!f) return;
     const r = new FileReader();
     r.onload = e=>{
       try{
         const jwk = JSON.parse(String(e.target.result||'{}'));
-        if (jwk.kid) audKid.value = jwk.kid;
-        if (audKid.value){ issuerEl.value = audKid.value; setIssuerLocked(true); }
+        if(jwk.kid) audKid.value = jwk.kid;
+        if(audKid.value){ issuerEl.value = audKid.value; setIssuerLocked(true); }
       }catch{}
     };
     r.readAsText(f,'utf-8');
@@ -470,50 +574,40 @@ def _form(
     }catch(e){}
   }
   loadVault();
-
   document.getElementById('vault')?.addEventListener('change', (ev)=>{
     const kid = ev.target.value;
-    if (!kid) return;
-    audKid.value = kid;
-    issuerEl.value = kid;
-    setIssuerLocked(true);
-    if (jwkInput) jwkInput.value = "";
+    if(!kid) return;
+    audKid.value = kid; issuerEl.value = kid; setIssuerLocked(true);
+    if(jwkInput) jwkInput.value = "";
   });
 
   // Token verkeerslicht + masking
   const accessTokenEl = document.getElementById('accessTokenText');
   const toggleTokenBtn = document.getElementById('toggleTokenBtn');
   function setTokenLight(hasToken){
-    const dot   = document.getElementById('tokenDot');
+    const dot = document.getElementById('tokenDot');
     const label = document.getElementById('tokenLabel');
-    if (!dot || !label) return;
-    if (hasToken){
-      dot.style.background = '#27d89d';
-      dot.style.boxShadow  = '0 0 8px #27d89d';
-      label.textContent    = 'Token OK';
-    }else{
-      dot.style.background = '#666';
-      dot.style.boxShadow  = '0 0 6px #333';
-      label.textContent    = 'Geen token';
-    }
+    if(!dot || !label) return;
+    if(hasToken){ dot.style.background='#27d89d'; dot.style.boxShadow='0 0 8px #27d89d'; label.textContent='Token OK'; }
+    else        { dot.style.background='#666';     dot.style.boxShadow='0 0 6px #333';    label.textContent='Geen token'; }
   }
   function maskToken(){
-    if (!accessTokenEl) return;
+    if(!accessTokenEl) return;
     const full = accessTokenEl.textContent || '';
-    if (!full || full === '-') { setTokenLight(false); return; }
+    if(!full || full === '-'){ setTokenLight(false); return; }
     accessTokenEl.setAttribute('data-full', full);
     accessTokenEl.setAttribute('data-hidden','1');
     const masked = full.length>12 ? (full.slice(0,6) + "…" + full.slice(-6)) : "•••";
     accessTokenEl.textContent = masked;
-    if (toggleTokenBtn) toggleTokenBtn.textContent = 'Toon token';
+    if(toggleTokenBtn) toggleTokenBtn.textContent = 'Toon token';
     setTokenLight(true);
   }
   (function initTokenLightAndMask(){
-    if (toggleTokenBtn){
+    if(toggleTokenBtn){
       maskToken();
       toggleTokenBtn.addEventListener('click', ()=>{
         const isHidden = accessTokenEl.getAttribute('data-hidden') === '1';
-        if (isHidden){
+        if(isHidden){
           accessTokenEl.textContent = accessTokenEl.getAttribute('data-full') || '';
           accessTokenEl.setAttribute('data-hidden','0');
           toggleTokenBtn.textContent = 'Verberg token';
@@ -525,60 +619,44 @@ def _form(
       setTokenLight(!!(accessTokenEl && accessTokenEl.textContent && accessTokenEl.textContent.trim() !== '-'));
     }
   })();
-
   document.getElementById('copyTokenBtn')?.addEventListener('click', async ()=>{
     const txt = accessTokenEl.getAttribute('data-full') || accessTokenEl.textContent || '';
-    try { await navigator.clipboard.writeText(txt); } catch(e){ alert('Kopiëren mislukt: '+e.message); }
+    try{ await navigator.clipboard.writeText(txt); } catch(e){ alert('Kopiëren mislukt: '+e.message); }
   });
 
-  // Scopes tooltip (robust toggle)
+  // Scopes tooltip
   (()=>{
-    const btn   = document.getElementById('scopeTooltipBtn');
-    const wrap  = document.getElementById('tokenStatus');
+    const btn = document.getElementById('scopeTooltipBtn');
+    const wrap = document.getElementById('tokenStatus');
     const panel = document.getElementById('scopeTooltipPanel');
-    if (!btn || !panel || !wrap) return;
-
-    function openPanel(){
-      panel.classList.remove('hidden');
-      panel.style.display = 'block';
-      btn.setAttribute('aria-expanded','true');
-    }
-    function closePanel(){
-      panel.classList.add('hidden');
-      panel.style.display = 'none';
-      btn.setAttribute('aria-expanded','false');
-    }
-    function togglePanel(){
-      const isHidden = panel.classList.contains('hidden') || panel.style.display === 'none';
-      if (isHidden) openPanel(); else closePanel();
-    }
-
+    if(!btn || !panel || !wrap) return;
+    function openPanel(){ panel.classList.remove('hidden'); panel.style.display='block'; btn.setAttribute('aria-expanded','true'); }
+    function closePanel(){ panel.classList.add('hidden'); panel.style.display='none'; btn.setAttribute('aria-expanded','false'); }
+    function togglePanel(){ const isHidden = panel.classList.contains('hidden') || panel.style.display==='none'; if(isHidden) openPanel(); else closePanel(); }
     closePanel();
     btn.addEventListener('click', togglePanel);
     btn.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); togglePanel(); }});
     document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePanel(); });
-    document.addEventListener('click', e=>{ if (!wrap.contains(e.target)) closePanel(); });
+    document.addEventListener('click', e=>{ if(!wrap.contains(e.target)) closePanel(); });
     wrap.addEventListener('mouseenter', openPanel);
     wrap.addEventListener('mouseleave', closePanel);
   })();
-
-  // Scopes content (warning-safe regex)
   (()=>{
     const dataEl = document.getElementById('scopesData');
     const content = document.getElementById('scopeTooltipContent');
-    if (!dataEl || !content) return;
+    if(!dataEl || !content) return;
     let payload = {};
-    try { payload = JSON.parse(dataEl.textContent || '{}'); } catch {}
+    try{ payload = JSON.parse(dataEl.textContent || '{}'); } catch {}
     const scopesStr = (payload.scopes || '').trim();
-    const mapping   = payload.mapping || {};
-    if (!scopesStr) { content.textContent = 'Geen scopes in token.'; return; }
+    const mapping = payload.mapping || {};
+    if(!scopesStr){ content.textContent = 'Geen scopes in token.'; return; }
     const scopes = Array.from(new Set(scopesStr.split(/\\s+/).filter(Boolean))).sort();
-    const mappedRows = [], extras = [];
-    scopes.forEach(s => { if (mapping[s]) mappedRows.push({key:s, label:mapping[s]}); else extras.push(s); });
+    const mappedRows=[], extras=[];
+    scopes.forEach(s => { if(mapping[s]) mappedRows.push({key:s, label: mapping[s]}); else extras.push(s); });
     const row = (label, ok)=>`<tr><td>${label}</td><td style="width:80px;text-align:center">${ok?'✔️':'❌'}</td></tr>`;
     let html = `<table><tr><th>Betekenis</th><th>Aanwezig</th></tr>`;
     mappedRows.forEach(r => { html += row(r.label, true); });
-    if (extras.length){
+    if(extras.length){
       html += `<tr><th colspan="2">Overige scopes (niet in mapping)</th></tr>`;
       extras.forEach(s => { html += `<tr><td class="k" colspan="2">${s}</td></tr>`; });
     }
@@ -586,27 +664,15 @@ def _form(
     content.innerHTML = html;
   })();
 
-  // Mooie dropdown-styling + tint opties
+  // Operatie-select tinting
   (function styleOperationSelect(){
-    const sel = document.getElementById('op_select');
-    if (!sel) return;
-    sel.style.background  = '#0b1016';
-    sel.style.color       = '#e7f3f3';
-    sel.style.borderColor = 'rgba(255,255,255,0.18)';
-    function tintOptions(){
-      [...sel.options].forEach(opt=>{
-        opt.style.background = '#0b1016';
-        opt.style.color      = '#e7f3f3';
-      });
-    }
-    tintOptions();
-    const mo = new MutationObserver(tintOptions);
-    mo.observe(sel, {childList:true});
-    sel.addEventListener('mousedown', tintOptions);
-    sel.addEventListener('click', tintOptions);
+    const sel = document.getElementById('op_select'); if(!sel) return;
+    sel.style.background = '#0b1016'; sel.style.color = '#e7f3f3'; sel.style.borderColor = 'rgba(255,255,255,0.18)';
+    function tint(){ [...sel.options].forEach(opt=>{ opt.style.background='#0b1016'; opt.style.color='#e7f3f3'; }); }
+    tint(); const mo=new MutationObserver(tint); mo.observe(sel,{childList:true}); sel.addEventListener('mousedown', tint); sel.addEventListener('click', tint);
   })();
 
-  // Endpoints (laden/editor)
+  // Endpoints editor
   async function loadEndpoints(){
     try{
       const res = await fetch('/dcbapi/endpoints.json',{cache:'no-store'});
@@ -615,12 +681,10 @@ def _form(
       const sel = document.getElementById('op_select');
       sel.innerHTML = '';
       Object.keys(obj).sort().forEach(k=>{
-        const o = document.createElement('option');
-        o.value = k; o.textContent = k;
-        sel.appendChild(o);
+        const o = document.createElement('option'); o.value=k; o.textContent=k; sel.appendChild(o);
       });
       const first = Object.keys(obj)[0];
-      if (first){ sel.value = first; applyOperation(obj, first); }
+      if(first){ sel.value = first; applyOperation(obj, first); }
       sel.onchange = ()=>applyOperation(obj, sel.value);
       window.__ENDPOINTS__ = obj;
     }catch(e){
@@ -628,22 +692,20 @@ def _form(
     }
   }
   loadEndpoints();
-
   document.getElementById('loadEndpointsBtn')?.addEventListener('click', loadEndpoints);
   document.getElementById('saveEndpointsBtn')?.addEventListener('click', async ()=>{
     try{
       const txt = document.getElementById('endpointsEditor').value;
       const obj = JSON.parse(txt);
       const res = await fetch('/dcbapi/endpoints.json', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(obj)});
-      if (!res.ok) { alert('Opslaan mislukt'); return; }
-      await loadEndpoints();
-      log('Endpoints opgeslagen.');
+      if(!res.ok){ alert('Opslaan mislukt'); return; }
+      await loadEndpoints(); log('Endpoints opgeslagen.');
     }catch(e){ alert('Ongeldige JSON of fout bij opslaan.'); }
   });
 
-  // Placeholder-engine (client)
+  // Placeholder-classifier voor dynamische velden
   function classify(ph){
-    if (typeof ph !== 'string') return {type:'text', ph:''};
+    if(typeof ph !== 'string') return {type:'text', ph:''};
     const suf = ph.split('.').pop();
     const map = { n:'text', oc:'text', sn:'text', temp:'text', r:'textarea', desc:'textarea', dur:'number', cp:'list', cert:'file' };
     return {type: map[suf] || 'text', ph};
@@ -655,18 +717,15 @@ def _form(
     document.getElementById('op_path').value   = (op.path   || '/health');
     const dyn = document.getElementById('dynForm');
     dyn.innerHTML = '';
-    for (const k of Object.keys(tmpl)){
+    for(const k of Object.keys(tmpl)){
       const v = tmpl[k];
       const label = k.replace(/_/g, ' ').replace(/\\b\\w/g,m=>m.toUpperCase());
-      if (Array.isArray(v)){
+      if(Array.isArray(v)){
         const ph = (v.length===1 && typeof v[0]==='string') ? v[0] : '';
         const info = classify(ph);
-        if (info.type === 'list'){
+        if(info.type === 'list'){
           const id = `fld_${k}`;
-          const wrap = `
-            <div id="${id}" class="input-row">
-              <button type="button" class="btn" data-add="${id}">+ Voeg toe</button>
-            </div>`;
+          const wrap = `<div id="${id}" class="input-row"><button type="button" class="btn" data-add="${id}">+ Voeg toe</button></div>`;
           dyn.insertAdjacentHTML('beforeend', `<div class="lbl">${label}</div><div>${wrap}</div>`);
           addListRow(id, info.ph);
           dyn.querySelector(`[data-add="${id}"]`)?.addEventListener('click', ()=> addListRow(id, info.ph));
@@ -675,20 +734,19 @@ def _form(
           dyn.insertAdjacentHTML('beforeend', `<div class="lbl">${label}</div><div><textarea class="in" rows="3" id="${id}" placeholder="Komma-gescheiden waarden"></textarea></div>`);
         }
       } else {
-        const info = classify(v);
-        const id = `fld_${k}`;
-        if (info.type==='textarea'){
+        const info = classify(v); const id = `fld_${k}`;
+        if(info.type==='textarea'){
           dyn.insertAdjacentHTML('beforeend', `<div class="lbl">${label}</div><div><textarea class="in" rows="3" id="${id}" data-ph="${info.ph}"></textarea></div>`);
-        } else if (info.type==='number'){
+        } else if(info.type==='number'){
           dyn.insertAdjacentHTML('beforeend', `<div class="lbl">${label}</div><div><input class="in" id="${id}" type="number" step="1" data-ph="${info.ph}"/></div>`);
-        } else if (info.type==='file'){
+        } else if(info.type==='file'){
           dyn.insertAdjacentHTML('beforeend', `<div class="lbl">${label} (bestand → Base64)</div><div class="input-row">
-            <input class="in" type="file" id="${id}_file" />
-            <button type="button" class="btn" id="${id}_to64">Lees & Base64</button>
-          </div>
-          <textarea class="in" rows="3" id="${id}" data-ph="${info.ph}" placeholder="Base64 inhoud..."></textarea>`);
+              <input class="in" type="file" id="${id}_file" />
+              <button type="button" class="btn" id="${id}_to64">Lees & Base64</button>
+            </div>
+            <textarea class="in" rows="3" id="${id}" data-ph="${info.ph}" placeholder="Base64 inhoud..."></textarea>`);
           const fileEl = document.getElementById(`${id}_file`);
-          const btn64  = document.getElementById(`${id}_to64`);
+          const btn64 = document.getElementById(`${id}_to64`);
           btn64?.addEventListener('click', async ()=>{
             const f = fileEl.files && fileEl.files[0]; if(!f) return alert('Kies eerst een bestand.');
             const arr = await f.arrayBuffer(); const b64 = btoa(String.fromCharCode(...new Uint8Array(arr)));
@@ -719,38 +777,33 @@ def _form(
   document.getElementById('toggleRawBtn')?.addEventListener('click', ()=>{
     const raw = document.getElementById('op_body');
     const isHidden = raw.classList.contains('hidden');
-    if (isHidden){
-      const body = buildBodyFromDyn();
-      document.getElementById('op_body').value = JSON.stringify(body, null, 2);
-      raw.classList.remove('hidden');
-      document.getElementById('toggleRawBtn').textContent = 'Verberg Raw JSON';
+    if(isHidden){
+      const body = buildBodyFromDyn(); document.getElementById('op_body').value = JSON.stringify(body, null, 2);
+      raw.classList.remove('hidden'); document.getElementById('toggleRawBtn').textContent = 'Verberg Raw JSON';
     } else {
-      raw.classList.add('hidden');
-      document.getElementById('toggleRawBtn').textContent = 'Toon Raw JSON';
+      raw.classList.add('hidden'); document.getElementById('toggleRawBtn').textContent = 'Toon Raw JSON';
     }
   });
-
   function buildBodyFromDyn(){
     const sel = document.getElementById('op_select');
     const ops = window.__ENDPOINTS__ || {};
     const cur = ops[sel.value] || {};
     const tmpl = cur.body_template || {};
     const body = {};
-    for (const k of Object.keys(tmpl)){
+    for(const k of Object.keys(tmpl)){
       const v = tmpl[k];
-      if (Array.isArray(v)){
+      if(Array.isArray(v)){
         const ph = (v.length===1 && typeof v[0]==='string') ? v[0] : '';
         const rows = Array.from(document.querySelectorAll(`#fld_${k} [data-ph="${ph}"]`));
         const values = rows.map(el => el.value).filter(x=>x!==undefined && x!=="");
         body[k] = values;
       } else {
         const el = document.getElementById(`fld_${k}`);
-        if (!el){ body[k] = ""; continue; }
+        if(!el){ body[k] = ""; continue; }
         const type = el.getAttribute('type') || (el.tagName.toLowerCase()==='textarea' ? 'textarea' : 'text');
         let val = el.value;
-        if (type === 'number' && val !== "") {
-          const n = Number(val);
-          val = (Number.isFinite(n) ? n : val);
+        if(type === 'number' && val !== ""){
+          const n = Number(val); val = (Number.isFinite(n) ? n : val);
         }
         body[k] = val;
       }
@@ -758,79 +811,54 @@ def _form(
     return body;
   }
 
-  // Health badge helper
-  function setHealthBadge(ok){
-    const dot = document.getElementById('healthDot');
-    const lab = document.getElementById('healthLabel');
-    if (!dot || !lab) return;
-    if (ok){
-      dot.style.background = '#27d89d';
-      dot.style.boxShadow  = '0 0 8px #27d89d';
-      lab.textContent = 'Health OK';
-      setBtnGlow('healthBtn', 'ok');
-    }else{
-      dot.style.background = '#ff5566';
-      dot.style.boxShadow  = '0 0 8px rgba(255,85,102,.8)';
-      lab.textContent = 'Health KO';
-      setBtnGlow('healthBtn', 'ko');
-    }
-  }
-
-  // Execute + Health
+  // Uitvoeren (met auth)
   async function executeCall(method, path, body){
-    const sid = document.getElementById('session_id').value.trim();
-    if (!sid){ alert('Geen sessie/token. Genereer eerst een token.'); return; }
+    const sid  = document.getElementById('session_id').value.trim();
+    if(!sid){ alert('Geen sessie/token. Genereer eerst een token.'); return 0; }
     const base = document.getElementById('api_base').value.trim();
-
     setProgress('progressCall', true, 10);
     log(`Call: ${method} ${base}${path}`);
-
     try{
       const res = await fetch('/dcbapi/call', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({session_id: sid, base, method, path, body})
       });
       setProgress('progressCall', true, 70);
       const txt = await res.text();
-      let pretty = txt; try{ pretty = JSON.stringify(JSON.parse(txt), null, 2); }catch(_){}
+      let pretty = txt; try{ pretty = JSON.stringify(JSON.parse(txt), null, 2);}catch(_){}
       document.getElementById('respText').textContent = pretty;
       setProgress('progressCall', false, 100);
       log(`Response: HTTP ${res.status}`);
       return res.status;
     }catch(e){
       setProgress('progressCall', false, 0);
-      alert('Call mislukt: '+ e.message);
-      log('Call error: '+ e.message);
-      return 0;
+      alert('Call mislukt: '+ e.message); log('Call error: '+ e.message); return 0;
     }
   }
-
   document.getElementById('runBtn')?.addEventListener('click', async ()=>{
     const method = (document.getElementById('op_method')?.value || 'GET').toUpperCase();
-    const path   = document.getElementById('op_path')?.value || '/health';
+    const path   =  document.getElementById('op_path')?.value  || '/health';
     const raw = document.getElementById('op_body');
     let body = null;
-    if (!raw.classList.contains('hidden')){
+    if(!raw.classList.contains('hidden')){
       const txt = raw.value; try{ body = txt ? JSON.parse(txt) : (['POST','PUT','PATCH'].includes(method) ? {} : null); }
       catch(e){ alert('Raw JSON is ongeldig.'); return; }
     } else {
-      body = buildBodyFromDyn();
-      if (!['POST','PUT','PATCH'].includes(method)) body = null;
+      body = buildBodyFromDyn(); if(!['POST','PUT','PATCH'].includes(method)) body = null;
     }
     await executeCall(method, path, body);
   });
+  document.getElementById('clearRespBtn')?.addEventListener('click', ()=>{ document.getElementById('respText').textContent = '(geen response)'; });
 
-  document.getElementById('healthBtn')?.addEventListener('click', async ()=>{
-    const status = await executeCall('GET', '/health', null);
-    setHealthBadge(status === 200);
-  });
+  // Health-form (publiek)
+  (()=>{
+    const form = document.getElementById('dcbapi-health-form');
+    form?.addEventListener('submit', ()=>{
+      setBtnGlow('healthBtn','idle');
+    });
+  })();
 
-  document.getElementById('clearRespBtn')?.addEventListener('click', ()=>{
-    document.getElementById('respText').textContent = '(geen response)';
-  });
-
-  // Token form progress + glow states
+  // Token form progress + glow
   (()=>{
     const form = document.getElementById('tokenForm');
     const btn  = document.getElementById('genTokenBtn');
@@ -845,7 +873,21 @@ def _form(
 __SCOPES_EMBED__
 """
 
-    # Vervang placeholders
+    # Blokken invullen
+    error_block = f"<div class='error'>⚠️ {error}</div>" if error else ""
+    info_block  = f"<div class='muted'>ℹ️ {info}</div>" if info else ""
+    scopes_top  = (f"<div class='muted' style='margin-top:6px;'>Scope-overzicht</div><div id='scopesTableTop'>{scope_table_html}</div>"
+                   if scope_table_html else "")
+    health_top  = (f"<div class='muted' style='margin-top:6px;'>Health-overzicht</div><div id='healthPanelTop'>{health_table_html}</div>"
+                   if health_table_html else "")
+
+    body = body.replace("{STYLES}", styles)
+    body = body.replace("{ERROR_BLOCK}", error_block)
+    body = body.replace("{INFO_BLOCK}", info_block)
+    body = body.replace("{SCOPES_TOP}", scopes_top)
+    body = body.replace("{HEALTH_TOP}", health_top)
+
+    # Eenvoudige placeholders
     body = body.replace("__SESSION_ID__", session_id or "")
     body = body.replace("__ACCESS_TOKEN__", token_text)
     body = body.replace("__COPY_DISABLED__", copy_disabled)
@@ -857,14 +899,19 @@ __SCOPES_EMBED__
         body = body.replace("__RESULT_JSON__", result_json)
     else:
         body = body.replace("__RESULT_JSON__", "")
-
     body = body.replace("__SCOPES_EMBED__", scopes_embed or "")
-    body = body.replace("__ERROR_BLOCK__", f"<div class='error'>⚠️ {error}</div>" if error else "")
-    body = body.replace("__INFO_BLOCK__", f"<div class='muted'>ℹ️ {info}</div>" if info else "")
+
+    # JS placeholders voor omgevingswaarden
+    body = body.replace("__OP_PROD__", OP_BASES["prod"])
+    body = body.replace("__OP_TI__",   OP_BASES["ti"])
+    body = body.replace("__OP_DEV__",  OP_BASES["dev"])
+    body = body.replace("__API_PROD__", API_BASES["prod"])
+    body = body.replace("__API_TI__",   API_BASES["ti"])
+    body = body.replace("__API_DEV__",  API_BASES["dev"])
 
     return _page("DCBaaS API Tool", body)
 
-# ---------------- Web routes -----------------------
+# ---------- Web routes ----------
 def register_web_routes(app: Flask):
     import requests
 
@@ -876,16 +923,16 @@ def register_web_routes(app: Flask):
     def dcbapi_token_generate():
         try:
             session_id = (request.form.get("session_id") or "").strip() or str(uuid.uuid4())
-            op_base = (request.form.get("op_base") or "").strip()
-            aud_kid = (request.form.get("aud_kid") or "").strip()
-            issuer  = (request.form.get("issuer") or "").strip()
-            scope   = (request.form.get("scope") or "").strip()
-            vault_kid = (request.form.get("vault") or "").strip()
+            op_base    = (request.form.get("op_base")    or "").strip()
+            aud_kid    = (request.form.get("aud_kid")    or "").strip()
+            issuer     = (request.form.get("issuer")     or "").strip()
+            scope      = (request.form.get("scope")      or "").strip()
+            vault_kid  = (request.form.get("vault")      or "").strip()
 
             if op_base not in OP_BASES.values():
                 return _form(error="OP omgeving is ongeldig."), 400
 
-            # JWK ophalen (Vault of upload)
+            # JWK: vault of upload
             if vault_kid:
                 vault = _load_vault_raw()
                 if vault_kid not in vault:
@@ -913,7 +960,7 @@ def register_web_routes(app: Flask):
 
             token_url = op_base.rstrip("/") + TOKEN_SUFFIX
 
-            # scopes: user + ALWAYS_SCOPES -> één regel
+            # scopes: user + ALWAYS_SCOPES
             scopes_user = (scope or "").split()
             merged_scopes = " ".join(sorted(set(scopes_user) | set(ALWAYS_SCOPES)))
 
@@ -934,40 +981,34 @@ def register_web_routes(app: Flask):
 
             if resp.status_code >= 400:
                 pretty = json.dumps(data, ensure_ascii=False, indent=2)
-                # Bij fout: knop rood glow
                 page = _form(
                     error=f"Token aanvraag faalde (HTTP {resp.status_code})",
                     result_json=pretty,
                     token_url=token_url,
                     session_id=session_id
                 )
-                # Inject klein scriptje om knop rood te zetten na render
                 page += "<script>try{setBtnGlow('genTokenBtn','ko');}catch{}</script>"
                 return page, resp.status_code
 
             pretty = json.dumps(data, ensure_ascii=False, indent=2)
             access_token = data.get("access_token") or ""
-            scopes_resp = data.get("scope") or ""
+            scopes_resp  = data.get("scope") or ""
 
             # sessie + files
-            SESSIONS[session_id] = {
-                "token": access_token,
-                "scopes": scopes_resp,
-                "op_base": op_base,
-                "created_ts": int(time.time())
-            }
+            SESSIONS[session_id] = {"token": access_token, "scopes": scopes_resp, "op_base": op_base, "created_ts": int(time.time())}
             _ensure_data_dir()
             sd = _session_dir(session_id)
             _save_file(os.path.join(sd, "access_token.txt"), access_token)
             _save_file(os.path.join(sd, "scopes.json"), json.dumps({"scope": scopes_resp}, ensure_ascii=False, indent=2))
 
-            # Embed scopes
+            # Scope-embed (tooltip) + scope-tabel (onder token)
             mapping = _load_scope_mapping()
             scopes_json_script = (
                 "<script id='scopesData' type='application/json'>"
                 + json.dumps({"scopes": scopes_resp, "mapping": mapping}, ensure_ascii=False)
                 + "</script>"
             )
+            scope_table_html = _render_scope_table(scopes_resp, mapping)
 
             page = _form(
                 error=None,
@@ -976,16 +1017,46 @@ def register_web_routes(app: Flask):
                 access_token=access_token,
                 token_url=token_url,
                 session_id=session_id,
-                scopes_embed=scopes_json_script
+                scopes_embed=scopes_json_script,
+                scope_table_html=scope_table_html,
             )
-            # Knop groen glow na succes
             page += "<script>try{setBtnGlow('genTokenBtn','ok');}catch{}</script>"
             return page
-
         except Exception as e:
             page = _form(error=f"Fout: {e}")
             page += "<script>try{setBtnGlow('genTokenBtn','ko');}catch{}</script>"
             return page, 400
+
+    @app.post("/dcbapi/health", strict_slashes=False)
+    def dcbapi_health():
+        """Publieke health: GET {API_BASE}/health (GEEN Authorization header)."""
+        try:
+            _ = (request.form.get("op_base") or "").strip()
+            api_base = (request.form.get("api_base") or "").strip()
+            if not api_base:
+                api_base = API_BASES["prod"]  # veilige fallback
+            url = api_base.rstrip("/") + "/health"
+
+            import requests
+            resp = requests.get(url, headers={"Accept": "application/json"}, timeout=30)
+            txt = resp.text
+            try:
+                data = resp.json()
+                pretty = json.dumps(data, ensure_ascii=False, indent=2)
+            except Exception:
+                data = {"status": txt}
+                pretty = txt
+
+            health_table = _render_health_table(data)
+            banner = None if resp.ok else f"Health-controle mislukt (HTTP {resp.status_code})"
+
+            return _form(
+                error=banner,
+                result_json=pretty,
+                health_table_html=health_table,
+            ), (200 if resp.ok else resp.status_code)
+        except Exception as e:
+            return _form(error=f"Health check fout: {e}"), 400
 
     @app.post("/dcbapi/call", strict_slashes=False)
     def dcbapi_call():
@@ -1005,7 +1076,6 @@ def register_web_routes(app: Flask):
             token = sess.get("token", "")
             if not token:
                 return jsonify({"error": "Geen token in sessie. Genereer eerst een token."}), 400
-
             if not base or not path:
                 return jsonify({"error": "base en path zijn verplicht."}), 400
 
@@ -1013,16 +1083,17 @@ def register_web_routes(app: Flask):
             headers = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
 
             import requests
-            resp = requests.request(method, url, json=payload if method in ("POST","PUT","PATCH") else None,
-                                    headers=headers, timeout=60)
-
+            resp = requests.request(
+                method, url,
+                json=payload if method in ("POST","PUT","PATCH") else None,
+                headers=headers, timeout=60
+            )
             try:
                 data = resp.json()
                 return Response(json.dumps(data, ensure_ascii=False, indent=2),
                                 mimetype="application/json", status=resp.status_code)
             except Exception:
                 return Response(resp.text, mimetype="text/plain", status=resp.status_code)
-
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
@@ -1074,12 +1145,11 @@ def register_web_routes(app: Flask):
         return Response(token, mimetype="text/plain",
                         headers={"Content-Disposition": 'attachment; filename="access_token.txt"'})
 
-# ---------------- Standalone -----------------------
+# ---------- Standalone ----------
 if __name__ == "__main__":
     _ensure_config_dir()
     _ensure_data_dir()
     app = Flask("dcbapi_standalone")
-    # Laat alle paden zowel met als zonder trailing slash werken
     app.url_map.strict_slashes = False
     register_web_routes(app)
     print("DCBaaS API Tool draait op: http://127.0.0.1:5010/dcbapi")
